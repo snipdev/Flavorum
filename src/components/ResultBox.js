@@ -1,14 +1,18 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, spacing } from '../theme'
+import { Ionicons } from '@expo/vector-icons'
+import { fs, spacing } from '../theme'
+import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 
-const badgeColors = {
-  success: { bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.45)', text: colors.success },
-  danger: { bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.45)', text: colors.danger },
-}
-
-export default function ResultBox({ items, title }) {
+export default function ResultBox({ items, title, segments = [] }) {
   const { t } = useI18n()
+  const { theme, textScale } = useTheme()
+  const colors = theme
+  const styles = createStyles(colors, textScale)
+  const badgeColors = {
+    success: { bg: colors.success + '1F', border: colors.success + '73', text: colors.success },
+    danger: { bg: colors.danger + '1F', border: colors.danger + '73', text: colors.danger },
+  }
   const header = title || t('results.title')
   const badge = items.find(i => i.badge)
 
@@ -21,14 +25,36 @@ export default function ResultBox({ items, title }) {
 
       {badge && (
         <View style={[styles.badge, { backgroundColor: badgeColors[badge.badge].bg, borderColor: badgeColors[badge.badge].border }]}>
-          <View style={[styles.badgeDot, { backgroundColor: badgeColors[badge.badge].text }]} />
+          <Ionicons name={badge.badge === 'success' ? 'checkmark-circle' : 'alert-circle'} size={16} color={badgeColors[badge.badge].text} importantForAccessibility="no" />
           <Text style={[styles.badgeText, { color: badgeColors[badge.badge].text }]}>{badge.value}</Text>
+        </View>
+      )}
+
+      {segments.length > 0 && (
+        <View style={styles.composition}>
+          <View style={styles.bar}>
+            {segments.map((seg, i) => (
+              <View key={i} style={[styles.segment, { flex: seg.pct, backgroundColor: seg.color }]} />
+            ))}
+          </View>
+          <View style={styles.legend}>
+            {segments.map((seg, i) => (
+              <View key={i} style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: seg.color }]} />
+                <Text style={styles.legendLabel}>{seg.label}</Text>
+                <Text style={styles.legendPct}>%{seg.pct.toFixed(1)}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       )}
 
       {items.filter(i => !i.badge).map((item, i) => (
         <View key={i} style={[styles.row, item.sub && styles.subRow, item.total && styles.totalRow]}>
-          <Text style={[styles.label, item.sub && styles.subLabel, item.total && styles.totalLabel]} numberOfLines={1}>
+          {item.accent && (
+            <View style={[styles.bullet, { backgroundColor: item.accent }]} />
+          )}
+          <Text style={[styles.label, item.sub && styles.subLabel, item.total && styles.totalLabel]} numberOfLines={2}>
             {item.label}
           </Text>
           <Text style={[styles.value, item.accent && { color: item.accent }, item.sub && styles.subValue, item.total && styles.totalValue]}>
@@ -40,7 +66,7 @@ export default function ResultBox({ items, title }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, scale = 1) => StyleSheet.create({
   wrapper: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -50,7 +76,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: spacing.md },
-  title: { fontSize: 16, fontWeight: '500', color: colors.textMuted, letterSpacing: 1, textTransform: 'uppercase' },
+  title: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   headerLine: { flex: 1, height: 1, backgroundColor: colors.cardBorder },
   badge: {
     flexDirection: 'row',
@@ -64,26 +90,46 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   badgeDot: { width: 8, height: 8, borderRadius: 4 },
-  badgeText: { fontSize: 15, fontWeight: '700' },
+  badgeText: { fontSize: fs(15, scale), fontWeight: '700' },
+  composition: { marginBottom: spacing.md },
+  bar: {
+    flexDirection: 'row',
+    height: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.cardBorder,
+  },
+  segment: { height: '100%' },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 10,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendLabel: { fontSize: fs(13, scale), color: colors.textMuted },
+  legendPct: { fontSize: fs(13, scale), fontWeight: '600', color: colors.text },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 146, 6, 0.06)',
+    borderBottomColor: colors.primary + '0F',
   },
   totalRow: {
     borderTopWidth: 1,
     borderBottomWidth: 0,
-    borderTopColor: 'rgba(197, 146, 6, 0.2)',
+    borderTopColor: colors.primary + '33',
     marginTop: spacing.xs,
     paddingTop: spacing.md,
   },
   subRow: { paddingLeft: 24, paddingVertical: 6 },
-  label: { flex: 1, fontSize: 16, color: colors.textMuted },
-  value: { fontSize: 19, fontWeight: '600', color: colors.text },
-  subLabel: { fontSize: 14, color: colors.textDim },
-  subValue: { fontSize: 15, color: colors.textMuted, fontWeight: '500' },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: colors.text },
-  totalValue: { fontSize: 22, fontWeight: '700', color: colors.primaryLight },
+  bullet: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
+  label: { flex: 1, fontSize: fs(16, scale), color: colors.textMuted },
+  value: { fontSize: fs(19, scale), fontWeight: '600', color: colors.text },
+  subLabel: { fontSize: fs(15, scale), color: colors.textMuted },
+  subValue: { fontSize: fs(15, scale), color: colors.textMuted, fontWeight: '500' },
+  totalLabel: { fontSize: fs(16, scale), fontWeight: '700', color: colors.text },
+  totalValue: { fontSize: fs(22, scale), fontWeight: '700', color: colors.primaryLight },
 })

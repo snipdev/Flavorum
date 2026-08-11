@@ -8,9 +8,11 @@ import PgVgSlider from '../components/PgVgSlider'
 import ResultBox from '../components/ResultBox'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import LangToggle from '../components/LangToggle'
-import { colors, spacing, isWeb } from '../theme'
+import ThemePickerModal from '../components/ThemePickerModal'
+import { fs, spacing } from '../theme'
+import { useTheme } from '../ThemeContext'
 import { calculateNicotine } from '../utils/calculations'
-import { loadRecipes, saveRecipes, loadBatches, saveBatches, newBatchId } from '../utils/recipes'
+import { loadRecipes, saveRecipes, loadBatches, saveBatches, newBatchId, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
 import { useI18n } from '../i18n'
 
 const TARGET_VOLUMES = [30, 60, 100, 120, 200, 250]
@@ -24,6 +26,8 @@ const VG_PG_PRESETS = [
 
 function SourceCard({ source, onUpdate, onDelete, amountInputRef }) {
   const { t } = useI18n()
+  const { theme: colors, textScale } = useTheme()
+  const styles = createStyles(colors, textScale)
   const strength = source.strength
   const baseType = source.baseType
   const customPg = source.customPg || '50'
@@ -33,7 +37,7 @@ function SourceCard({ source, onUpdate, onDelete, amountInputRef }) {
     <View style={styles.sourceCard}>
       <View style={styles.sourceCardHeader}>
         <Text style={styles.sourceCardTitle}>{t('build.source')}</Text>
-        <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={onDelete}>
+        <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={onDelete} accessibilityRole="button" accessibilityLabel={t('common.cancel')}>
           <Ionicons name="close-circle" size={20} color={colors.danger} />
         </TouchableOpacity>
       </View>
@@ -68,6 +72,8 @@ function SourceCard({ source, onUpdate, onDelete, amountInputRef }) {
 }
 
 function PresetGrid({ items, value, onSelect, suffix }) {
+  const { theme: colors, textScale } = useTheme()
+  const styles = createStyles(colors, textScale)
   return (
     <View style={styles.presetGridRows}>
       {[items.slice(0, 3), items.slice(3)].map((row, r) => (
@@ -88,6 +94,8 @@ function PresetGrid({ items, value, onSelect, suffix }) {
 
 export default function NicotineScreen({ navigation, route }) {
   const { t } = useI18n()
+  const { theme: colors, textScale } = useTheme()
+  const styles = createStyles(colors, textScale)
   const [nicStrength, setNicStrength] = useState('100')
   const [nicBaseMode, setNicBaseMode] = useState('pg')
   const [nicCustomPg, setNicCustomPg] = useState('50')
@@ -103,6 +111,7 @@ export default function NicotineScreen({ navigation, route }) {
   const [mixAmount, setMixAmount] = useState('10')
   const [flavorPct, setFlavorPct] = useState('15')
   const [ingredientMode, setIngredientMode] = useState('flavor')
+  const [themeModalVisible, setThemeModalVisible] = useState(false)
   const mixTotal = useMemo(() => {
     if (ingredientMode !== 'mix') return null
     const vol = parseFloat(mixAmount) || 0
@@ -116,9 +125,11 @@ export default function NicotineScreen({ navigation, route }) {
   const [warning, setWarning] = useState(null)
   const [savedRecipes, setSavedRecipes] = useState([])
   const [savedBatches, setSavedBatches] = useState([])
+  const [flavorRecs, setFlavorRecs] = useState({})
   const [saveModalVisible, setSaveModalVisible] = useState(false)
   const [loadModalVisible, setLoadModalVisible] = useState(false)
   const [loadBatchModalVisible, setLoadBatchModalVisible] = useState(false)
+  const [loadSearch, setLoadSearch] = useState('')
   const [batchName, setBatchName] = useState('')
   const amountRefs = useRef({})
   const scrollRef = useRef(null)
@@ -132,8 +143,18 @@ export default function NicotineScreen({ navigation, route }) {
       loadRecipes().then(list => {
         if (!active) return
         setSavedRecipes(list)
+        loadFlavorRecs().then(recs => {
+          if (!active) return
+          const recMap = recs || {}
+          setFlavorRecs(recMap)
+          recomputeFlavorRecs(list || [], recMap).then(next => { if (active) setFlavorRecs(next) })
+        })
         const pendingId = route.params?.loadRecipeId
-        if (pendingId) {
+        const brewRecipe = route.params?.brewRecipe
+        if (brewRecipe) {
+          loadRecipe(brewRecipe)
+          navigation.setParams({ brewRecipe: undefined })
+        } else if (pendingId) {
           const r = list.find(x => x.id === pendingId)
           if (r) loadRecipe(r)
           navigation.setParams({ loadRecipeId: undefined, loadRecipeName: undefined })
@@ -141,13 +162,51 @@ export default function NicotineScreen({ navigation, route }) {
       })
       loadBatches().then(list => { if (active) setSavedBatches(list) })
       return () => { active = false }
-    }, [route.params?.loadRecipeId])
+    }, [route.params?.loadRecipeId, route.params?.brewRecipe])
   )
+
 
   useEffect(() => {
     setResult(null)
     setWarning(null)
   }, [nicStrength, nicBaseMode, nicCustomPg, targetStrength, targetPg, totalVolume, mixAmount, flavorPct, ingredientMode, flavors, nicSources])
+
+  const liveWarnings = useMemo(() => {
+    const w = []
+    const nicStr = parseFloat(nicStrength) || 0
+    if (nicStr >= 50) w.push({ key: 'highNic', text: t('build.warnHighNic', { strength: nicStr }) })
+    const avail = Math.max(nicStr, ...nicSources.filter(s => parseFloat(s.amount) > 0).map(s => parseFloat(s.strength) || 0))
+    const target = parseFloat(targetStrength) || 0
+    if (avail > 0 && target > avail) w.push({ key: 'targetHigh', text: t('build.warnTargetHigh', { target, source: avail }) })
+    const flavorTotal = ingredientMode === 'mix'
+      ? (parseFloat(flavorPct) || 0)
+      : flavors.reduce((a, f) => a + (parseFloat(f.value) || 0), 0)
+    if (flavorTotal > 25) w.push({ key: 'highFlavor', text: t('build.warnHighFlavor', { pct: flavorTotal }) })
+    return w
+  }, [nicStrength, nicSources, targetStrength, ingredientMode, flavorPct, flavors, t])
+
+  const highNicWarn = liveWarnings.find(w => w.key === 'highNic')
+  const targetHighWarn = liveWarnings.find(w => w.key === 'targetHigh')
+  const highFlavorWarn = liveWarnings.find(w => w.key === 'highFlavor')
+
+  const nicPreview = (() => {
+    const nic = parseFloat(nicStrength) || 0
+    const target = parseFloat(targetStrength) || 0
+    if (!(nic > 0) || !(target > 0)) return null
+    const vol = ingredientMode === 'mix'
+      ? ((parseFloat(mixAmount) || 0) / ((parseFloat(flavorPct) || 0) / 100))
+      : (parseFloat(totalVolume) || 0)
+    if (!(vol > 0)) return null
+    const ml = Math.round((target * vol / nic) * 10) / 10
+    return { ml, vol }
+  })()
+
+  const renderWarn = (w) => w ? (
+    <View style={styles.inlineWarn} accessibilityLiveRegion="polite">
+      <Ionicons name="warning" size={14} color={colors.warning} />
+      <Text style={styles.inlineWarnText}>{w.text}</Text>
+    </View>
+  ) : null
 
   function addFlavor() {
     setFlavors([...flavors, { id: Date.now(), name: '', value: '' }])
@@ -288,14 +347,23 @@ export default function NicotineScreen({ navigation, route }) {
 
   const items = result ? [
     { value: result.isPossible ? t('build.readyToMix') : t('build.impossibleMix'), badge: result.isPossible ? 'success' : 'danger' },
-    { label: ingredientMode === 'mix' ? t('build.concentrate') : t('build.flavorToAdd'), value: `${result.flavorMl} ml`, accent: colors.success },
-    ...(result.flavorBreakdown || []).map(f => ({ label: f.name, value: `${f.ml} ml`, sub: true, accent: colors.success })),
-    { label: t('build.nicToAdd'), value: `${result.nicMl} ml`, accent: '#8b5cf6' },
-    ...(result.nicBreakdown || []).map(n => ({ label: n.name, value: `${n.ml} ml`, sub: true, accent: '#8b5cf6' })),
-    { label: t('build.pgToAdd'), value: `${result.pgNeeded} ml`, accent: colors.primaryLight },
-    { label: t('build.vgToAdd'), value: `${result.vgNeeded} ml`, accent: '#22d3ee' },
+    { label: ingredientMode === 'mix' ? t('build.concentrate') : t('build.flavorToAdd'), value: `${result.flavorMl} ml`, accent: '#3b82f6' },
+    ...(result.flavorBreakdown || []).map(f => ({ label: f.name, value: `${f.ml} ml`, sub: true, accent: '#3b82f6' })),
+    { label: t('build.nicToAdd'), value: `${result.nicMl} ml`, accent: '#ef4444' },
+    ...(result.nicBreakdown || []).map(n => ({ label: n.name, value: `${n.ml} ml`, sub: true, accent: '#ef4444' })),
+    { label: t('build.pgToAdd'), value: `${result.pgNeeded} ml`, accent: '#f97316' },
+    { label: t('build.vgToAdd'), value: `${result.vgNeeded} ml`, accent: '#22c55e' },
     { label: t('build.totalLiquidRes'), value: `${result.actualTotal} ml`, total: true },
   ] : null
+
+  const composition = result && result.actualTotal > 0
+    ? [
+        { label: 'PG', pct: (result.pgNeeded / result.actualTotal) * 100, color: '#f97316' },
+        { label: 'VG', pct: (result.vgNeeded / result.actualTotal) * 100, color: '#22c55e' },
+        { label: t('build.nicotine'), pct: (result.nicMl / result.actualTotal) * 100, color: '#ef4444' },
+        { label: t('build.flavor.mode'), pct: (result.flavorMl / result.actualTotal) * 100, color: '#3b82f6' },
+      ].filter(s => s.pct > 0.05)
+    : []
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -320,9 +388,29 @@ export default function NicotineScreen({ navigation, route }) {
             <Text style={styles.subtitle} numberOfLines={2}>{t('app.tagline')}</Text>
           </View>
           <View style={styles.heroRight}>
+            <TouchableOpacity
+              style={styles.themeBtn}
+              onPress={() => setThemeModalVisible(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('theme.title')}
+            >
+              <Ionicons name="color-palette" size={20} color={colors.primaryLight} />
+            </TouchableOpacity>
             <LangToggle />
           </View>
         </View>
+
+        {flavors.length === 0 && !result && nicSources.length === 0 && (
+          <View style={styles.hintBox}>
+            <View style={styles.hintHeader}>
+              <Ionicons name="sparkles" size={15} color={colors.primaryLight} />
+              <Text style={styles.hintTitle}>{t('build.hintTitle')}</Text>
+            </View>
+            <Text style={styles.hintSteps}>{t('build.hintSteps')}</Text>
+          </View>
+        )}
 
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
@@ -359,6 +447,7 @@ export default function NicotineScreen({ navigation, route }) {
                 <SliderInput label="" value={mixAmount} onChangeText={setMixAmount} min={0} max={500} step={5} suffix="ml" />
               </View>
               <SliderInput label={t('build.concentratePct')} value={flavorPct} onChangeText={setFlavorPct} min={0} max={40} step={0.5} suffix="%" />
+              {renderWarn(highFlavorWarn)}
               {mixTotal !== null && (
                 <View style={styles.mixPreview}>
                   <Ionicons name="flask-outline" size={14} color={colors.primaryLight} />
@@ -383,23 +472,36 @@ export default function NicotineScreen({ navigation, route }) {
                       onChangeText={v => updateFlavor(f.id, 'name', v)}
                       placeholder={t('common.name')}
                       exclude={flavors.map(o => o.name).filter(o => o !== f.name)}
+                      recs={flavorRecs}
+                      onPick={(name, rec, val) => {
+                        if (val != null) {
+                          updateFlavor(f.id, 'value', String(val))
+                          return
+                        }
+                        const rv = getRecValue(rec)
+                        if (rv != null && !(parseFloat(f.value) > 0)) {
+                          updateFlavor(f.id, 'value', String(rv))
+                        }
+                      }}
                     />
+                    <>
                       <Text style={styles.flavorPct}>%</Text>
                       <TextInput
                         style={styles.flavorInput}
                         value={f.value}
-                      onChangeText={v => {
-                        let val = v.replace(/[^0-9.]/g, '')
-                        if (parseFloat(val) > 100) val = '100'
-                        updateFlavor(f.id, 'value', val)
-                      }}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor={colors.textDim}
-                    />
-                    <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => removeFlavor(f.id)}>
-                      <Ionicons name="close-circle" size={18} color={colors.danger} />
-                    </TouchableOpacity>
+                        onChangeText={v => {
+                          let val = v.replace(/[^0-9.]/g, '')
+                          if (parseFloat(val) > 100) val = '100'
+                          updateFlavor(f.id, 'value', val)
+                        }}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={colors.textDim}
+                      />
+                      <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => removeFlavor(f.id)} accessibilityRole="button" accessibilityLabel={`${t('recipes.removeFlavor')} ${i + 1}`}>
+                        <Ionicons name="close-circle" size={18} color={colors.danger} />
+                      </TouchableOpacity>
+                    </>
                   </View>
                 ))}
               </View>
@@ -409,10 +511,11 @@ export default function NicotineScreen({ navigation, route }) {
                 <Text style={styles.addFlavorBtnText}>{t('recipes.addFlavor')}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.loadFlavorBtn} onPress={() => setLoadModalVisible(true)} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.loadFlavorBtn} onPress={() => { setLoadSearch(''); setLoadModalVisible(true) }} activeOpacity={0.7}>
                 <Ionicons name="library-outline" size={16} color={colors.primaryLight} />
                 <Text style={styles.loadFlavorBtnText}>{t('build.loadFlavorsFromRecipe')}</Text>
               </TouchableOpacity>
+              {renderWarn(highFlavorWarn)}
             </View>
           )}
 
@@ -421,6 +524,7 @@ export default function NicotineScreen({ navigation, route }) {
 
             <View style={styles.fieldGroup}>
             <SliderInput label={t('build.nicStrength')} value={nicStrength} onChangeText={setNicStrength} min={0} max={100} step={1} suffix="mg/ml" />
+            {renderWarn(highNicWarn)}
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>{t('build.nicBaseType')}</Text>
               <View style={styles.modeRow}>
@@ -512,6 +616,15 @@ export default function NicotineScreen({ navigation, route }) {
             <Text style={styles.fieldLabel}>{t('build.targetStrength')}</Text>
             <PresetGrid items={NIC_PRESETS} value={targetStrength} onSelect={setTargetStrength} suffix="mg" />
             <SliderInput label="" value={targetStrength} onChangeText={setTargetStrength} min={0} max={50} step={0.5} suffix="mg/ml" />
+            {renderWarn(targetHighWarn)}
+            {nicPreview && (
+              <View style={styles.presetPreview}>
+                <Ionicons name="calculator-outline" size={14} color={colors.primaryLight} />
+                <Text style={styles.presetPreviewText}>
+                  {t('build.presetPreview', { ml: nicPreview.ml, strength: parseFloat(nicStrength) || 0, vol: nicPreview.vol, target: parseFloat(targetStrength) || 0 })}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -525,7 +638,7 @@ export default function NicotineScreen({ navigation, route }) {
             }
           }}
         >
-          {items && <ResultBox items={items} title={t('build.recipe')} />}
+          {items && <ResultBox items={items} title={t('build.recipe')} segments={composition} />}
         </View>
       </ScrollView>
 
@@ -543,6 +656,7 @@ export default function NicotineScreen({ navigation, route }) {
 
       <Modal visible={loadBatchModalVisible} transparent animationType="fade" onRequestClose={() => setLoadBatchModalVisible(false)}>
         <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setLoadBatchModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('common.close')} />
           <View style={styles.modalCard}>
             <View style={styles.sectionHeader}>
               <Ionicons name="layers" size={14} color={colors.primaryLight} />
@@ -551,7 +665,8 @@ export default function NicotineScreen({ navigation, route }) {
             {savedBatches.length === 0 ? (
               <Text style={styles.modalEmptyText}>{t('build.noBatches')}</Text>
             ) : (
-              [...savedBatches].reverse().map(b => (
+              <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+                {[...savedBatches].reverse().map(b => (
                 <TouchableOpacity key={b.id} style={styles.recipeRow} onPress={() => loadBatch(b)} activeOpacity={0.7}>
                   <View style={styles.recipeRowInfo}>
                     <Text style={styles.recipeRowName}>{b.name}</Text>
@@ -559,7 +674,8 @@ export default function NicotineScreen({ navigation, route }) {
                   </View>
                   <Ionicons name="download-outline" size={20} color={colors.primaryLight} />
                 </TouchableOpacity>
-              ))
+                ))}
+              </ScrollView>
             )}
             <TouchableOpacity style={[styles.modalBtn, styles.modalCancel, styles.modalClose]} onPress={() => setLoadBatchModalVisible(false)} activeOpacity={0.7}>
               <Text style={styles.modalCancelText}>{t('common.close')}</Text>
@@ -570,6 +686,7 @@ export default function NicotineScreen({ navigation, route }) {
 
       <Modal visible={loadModalVisible} transparent animationType="fade" onRequestClose={() => setLoadModalVisible(false)}>
         <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setLoadModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('common.close')} />
           <View style={styles.modalCard}>
             <View style={styles.sectionHeader}>
               <Ionicons name="library" size={14} color={colors.primaryLight} />
@@ -578,17 +695,52 @@ export default function NicotineScreen({ navigation, route }) {
             {savedRecipes.filter(r => Array.isArray(r.flavors) && r.flavors.length > 0).length === 0 ? (
               <Text style={styles.modalEmptyText}>{t('build.noRecipesWithFlavors')}</Text>
             ) : (
-              savedRecipes
-                .filter(r => Array.isArray(r.flavors) && r.flavors.length > 0)
-                .map(r => (
-                  <TouchableOpacity key={r.id} style={styles.recipeRow} onPress={() => loadRecipe(r)} activeOpacity={0.7}>
-                    <View style={styles.recipeRowInfo}>
-                      <Text style={styles.recipeRowName}>{r.name}</Text>
-                      <Text style={styles.recipeRowMetaText}>{t('common.flavorCount', { count: r.flavors.length })}</Text>
-                    </View>
-                    <Ionicons name="download-outline" size={20} color={colors.primaryLight} />
-                  </TouchableOpacity>
-                ))
+              <>
+                <View style={styles.searchBox}>
+                  <Ionicons name="search" size={16} color={colors.textDim} />
+                  <TextInput
+                    style={styles.searchInput}
+                    value={loadSearch}
+                    onChangeText={setLoadSearch}
+                    placeholder={t('recipes.searchPlaceholder')}
+                    placeholderTextColor={colors.textDim}
+                    autoCorrect={false}
+                  />
+                  {loadSearch !== '' && (
+                    <TouchableOpacity onPress={() => setLoadSearch('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel={t('recipes.clearSearch')}>
+                      <Ionicons name="close-circle" size={16} color={colors.textDim} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+                  {savedRecipes
+                    .filter(r => Array.isArray(r.flavors) && r.flavors.length > 0)
+                    .filter(r => {
+                      const q = loadSearch.trim().toLowerCase()
+                      if (!q) return true
+                      return r.name.toLowerCase().includes(q) ||
+                        r.flavors.some(f => (f.name || f.brand || '').toLowerCase().includes(q))
+                    })
+                    .map(r => (
+                    <TouchableOpacity key={r.id} style={styles.recipeRow} onPress={() => loadRecipe(r)} activeOpacity={0.7}>
+                      <View style={styles.recipeRowInfo}>
+                        <Text style={styles.recipeRowName}>{r.name}</Text>
+                        <Text style={styles.recipeRowMetaText}>{t('common.flavorCount', { count: r.flavors.length })}</Text>
+                      </View>
+                      <Ionicons name="download-outline" size={20} color={colors.primaryLight} />
+                    </TouchableOpacity>
+                  ))}
+                  {loadSearch.trim() !== '' && savedRecipes
+                    .filter(r => Array.isArray(r.flavors) && r.flavors.length > 0)
+                    .filter(r => {
+                      const q = loadSearch.trim().toLowerCase()
+                      return r.name.toLowerCase().includes(q) ||
+                        r.flavors.some(f => (f.name || f.brand || '').toLowerCase().includes(q))
+                    }).length === 0 && (
+                    <Text style={styles.modalEmptyText}>{t('recipes.noMatch')} "{loadSearch}"</Text>
+                  )}
+                </ScrollView>
+              </>
             )}
             <TouchableOpacity style={[styles.modalBtn, styles.modalCancel, styles.modalClose]} onPress={() => setLoadModalVisible(false)} activeOpacity={0.7}>
               <Text style={styles.modalCancelText}>{t('common.close')}</Text>
@@ -599,6 +751,7 @@ export default function NicotineScreen({ navigation, route }) {
 
       <Modal visible={saveModalVisible} transparent animationType="fade" onRequestClose={() => setSaveModalVisible(false)}>
         <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setSaveModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('common.close')} />
           <View style={styles.modalCard}>
             <View style={styles.sectionHeader}>
               <Ionicons name="layers" size={14} color={colors.primaryLight} />
@@ -623,17 +776,19 @@ export default function NicotineScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
+
+      <ThemePickerModal visible={themeModalVisible} onClose={() => setThemeModalVisible(false)} />
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, scale = 1) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   kav: { flex: 1 },
   scroll: { flex: 1 },
-  content: { padding: spacing.lg, paddingBottom: 48 },
+  content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 48 },
   fieldGroup: { marginBottom: spacing.md },
-  fieldLabel: { fontSize: 15, fontWeight: '600', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.3 },
+  fieldLabel: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.3 },
   modeRow: { flexDirection: 'row', gap: 6 },
   modeBtn: {
     flex: 1,
@@ -643,23 +798,35 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
   },
-  modeBtnActive: { borderColor: colors.primary, backgroundColor: 'rgba(197, 146, 6, 0.1)' },
-  modeBtnText: { fontSize: 13, color: colors.textDim, fontWeight: '500' },
+  modeBtnActive: { borderColor: colors.primary, backgroundColor: colors.primary + '1A' },
+  modeBtnText: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500' },
   modeBtnTextActive: { color: colors.primaryLight },
   customSpacing: { marginTop: spacing.md },
   hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
   heroText: { flex: 1, flexShrink: 1 },
-  heroRight: { marginLeft: 'auto', flexShrink: 0 },
+  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  themeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  hintBox: {
+    backgroundColor: colors.primary + '12',
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+    borderRadius: 14,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  hintHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  hintTitle: { fontSize: fs(14, scale), fontWeight: '700', color: colors.primaryLight, letterSpacing: 0.3, textTransform: 'uppercase' },
+  hintSteps: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '500', lineHeight: 22 },
   iconCircle: {
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: 'rgba(197, 146, 6, 0.12)',
+    backgroundColor: colors.primary + '1F',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: 29, fontWeight: '500', color: colors.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: 16, color: colors.textMuted, marginTop: 1 },
+  title: { fontSize: fs(29, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: fs(16, scale), color: colors.textMuted, marginTop: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -669,10 +836,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   targetCard: {
-    backgroundColor: 'rgba(197, 146, 6, 0.07)',
+    backgroundColor: colors.primary + '12',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(197, 146, 6, 0.35)',
+    borderColor: colors.primary + '59',
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
@@ -684,16 +851,16 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  nicTitle: { fontSize: 14, color: colors.textMuted, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
+  nicTitle: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
   flavorCard: {
-    backgroundColor: 'rgba(16, 185, 129, 0.07)',
+    backgroundColor: colors.success + '12',
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
+    borderColor: colors.success + '40',
     borderRadius: 12,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  flavorTitle: { fontSize: 14, color: colors.textMuted, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
+  flavorTitle: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
   ingredientTypeCard: {
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -714,8 +881,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.border,
   },
-  toggleActive: { borderColor: colors.primary, backgroundColor: 'rgba(197, 146, 6, 0.1)' },
-  toggleText: { fontSize: 16, color: colors.textDim, fontWeight: '600' },
+  toggleActive: { borderColor: colors.primary, backgroundColor: colors.primary + '1A' },
+  toggleText: { fontSize: fs(16, scale), color: colors.textDim, fontWeight: '600' },
   toggleTextActive: { color: colors.primaryLight },
   loadBatchRow: { alignItems: 'flex-end', marginTop: spacing.sm },
   loadBatchBtn: {
@@ -726,35 +893,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: 'rgba(197, 146, 6, 0.25)',
+    borderColor: colors.primary + '40',
   },
-  loadBatchBtnText: { fontSize: 13, color: colors.primaryLight, fontWeight: '600' },
+  loadBatchBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '600' },
   flavorList: { marginBottom: spacing.sm },
   flavorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.sm },
   flavorIndex: {
     width: 24,
     height: 24,
     borderRadius: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: colors.success + '26',
     color: colors.success,
-    fontSize: 13,
+    fontSize: fs(13, scale),
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 24,
   },
   flavorInput: {
-    flex: 0.3,
+    width: 48,
+    flexShrink: 0,
     borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: 10,
     backgroundColor: colors.inputBg,
     color: colors.text,
-    fontSize: 13,
-    height: 40,
+    fontSize: fs(13, scale),
+    height: 48,
     paddingHorizontal: 6,
-    outlineStyle: 'none',
   },
-  flavorPct: { color: colors.textMuted, fontSize: 13, fontWeight: '600', marginLeft: 2 },
+  flavorPct: { color: colors.textMuted, fontSize: fs(13, scale), fontWeight: '600', marginLeft: 2 },
   addFlavorBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -763,10 +930,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderColor: colors.success + '4D',
     borderStyle: 'dashed',
   },
-  addFlavorBtnText: { fontSize: 13, color: colors.success, fontWeight: '600' },
+  addFlavorBtnText: { fontSize: fs(13, scale), color: colors.success, fontWeight: '600' },
   loadFlavorBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -775,28 +942,29 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: 'rgba(197, 146, 6, 0.3)',
+    borderColor: colors.primary + '4D',
     borderStyle: 'dashed',
+    marginTop: spacing.sm,
   },
-  loadFlavorBtnText: { fontSize: 13, color: colors.primaryLight, fontWeight: '600' },
+  loadFlavorBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '600' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md },
-  sectionTitle: { fontSize: 15, fontWeight: '500', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  sectionTitle: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   presetRowSpread: { flexDirection: 'row', gap: 8, marginBottom: spacing.md },
   presetGridRows: { marginBottom: spacing.md },
   presetGridRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   preset: {
-    backgroundColor: 'rgba(197, 146, 6, 0.08)',
+    backgroundColor: colors.primary + '14',
     borderWidth: 1,
-    borderColor: 'rgba(197, 146, 6, 0.15)',
+    borderColor: colors.primary + '26',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   presetSpread: { flex: 1, alignItems: 'center' },
-  presetActive: { borderColor: colors.primary, backgroundColor: 'rgba(197, 146, 6, 0.18)' },
+  presetActive: { borderColor: colors.primary, backgroundColor: colors.primary + '2E' },
   presetTextActive: { color: colors.primaryLight, fontWeight: '700' },
-  presetText: { fontSize: 13, color: colors.primaryLight, fontWeight: '500' },
+  presetText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '500' },
   stickyBar: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -805,7 +973,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: colors.bg,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 146, 6, 0.12)',
+    borderTopColor: colors.primary + '1F',
   },
   calcBtn: {
     flex: 1.6,
@@ -817,7 +985,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
   },
-  calcBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  calcBtnText: { fontSize: fs(16, scale), fontWeight: '700', color: '#fff' },
   saveBatchBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -827,34 +995,58 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: 'rgba(197, 146, 6, 0.3)',
-    backgroundColor: 'rgba(197, 146, 6, 0.06)',
+    borderColor: colors.primary + '4D',
+    backgroundColor: colors.primary + '0F',
   },
-  saveBatchBtnText: { fontSize: 15, fontWeight: '600', color: colors.primaryLight },
+  saveBatchBtnText: { fontSize: fs(15, scale), fontWeight: '600', color: colors.primaryLight },
   sourceCard: {
-    backgroundColor: 'rgba(197, 146, 6, 0.03)',
+    backgroundColor: colors.primary + '08',
     borderWidth: 1,
-    borderColor: 'rgba(197, 146, 6, 0.15)',
+    borderColor: colors.primary + '26',
     borderRadius: 12,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
   sourceCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  sourceCardTitle: { fontSize: 13, fontWeight: '600', color: colors.primaryLight, letterSpacing: 0.3, textTransform: 'uppercase' },
+  sourceCardTitle: { fontSize: fs(13, scale), fontWeight: '600', color: colors.primaryLight, letterSpacing: 0.3, textTransform: 'uppercase' },
   cardSection: { marginBottom: spacing.sm },
-  cardSectionTitle: { fontSize: 14, color: colors.textMuted, fontWeight: '600', marginBottom: 8, letterSpacing: 0.3 },
+  cardSectionTitle: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '600', marginBottom: 8, letterSpacing: 0.3 },
   warningBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: colors.danger + '1A',
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.4)',
+    borderColor: colors.danger + '66',
     borderRadius: 10,
     padding: 10,
     marginBottom: spacing.sm,
   },
-  warningText: { flex: 1, fontSize: 13, color: colors.danger, fontWeight: '500' },
+  warningText: { flex: 1, fontSize: fs(13, scale), color: colors.danger, fontWeight: '500' },
+  inlineWarn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.warning + '1F',
+    borderWidth: 1,
+    borderColor: colors.warning + '59',
+  },
+  inlineWarnText: { flex: 1, fontSize: fs(13, scale), color: colors.warning, fontWeight: '500' },
+  presetPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.primary + '1A',
+    borderWidth: 1,
+    borderColor: colors.primary + '33',
+  },
+  presetPreviewText: { flex: 1, fontSize: fs(13, scale), color: colors.textMuted },
   addNicBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -863,39 +1055,39 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: 'rgba(197, 146, 6, 0.2)',
+    borderColor: colors.primary + '33',
     borderStyle: 'dashed',
     marginBottom: spacing.md,
   },
-  addNicBtnText: { fontSize: 13, color: colors.primaryLight, fontWeight: '600' },
+  addNicBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '600' },
   sourceAmountRow: { marginBottom: 0 },
   mixPreview: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'rgba(197, 146, 6, 0.08)',
+    backgroundColor: colors.primary + '14',
     borderWidth: 1,
-    borderColor: 'rgba(197, 146, 6, 0.15)',
+    borderColor: colors.primary + '26',
     borderRadius: 10,
     paddingVertical: 10,
   },
-  mixPreviewText: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
+  mixPreviewText: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '500' },
   mixPreviewValue: { color: colors.primaryLight, fontWeight: '700' },
   recipeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(197, 146, 6, 0.04)',
+    backgroundColor: colors.primary + '0A',
     borderWidth: 1,
-    borderColor: 'rgba(197, 146, 6, 0.12)',
+    borderColor: colors.primary + '1F',
     borderRadius: 12,
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
   recipeRowInfo: { flex: 1, marginRight: spacing.sm },
-  recipeRowName: { fontSize: 17, fontWeight: '600', color: colors.text, marginBottom: 4 },
+  recipeRowName: { fontSize: fs(17, scale), fontWeight: '600', color: colors.text, marginBottom: 4 },
   recipeRowMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  recipeRowMetaText: { fontSize: 13, color: colors.textDim, fontWeight: '500' },
+  recipeRowMetaText: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -906,11 +1098,16 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: colors.card,
+    backgroundColor: colors.modalBg,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.glassBorderStrong,
+    overflow: 'hidden',
     padding: spacing.lg,
+  },
+  modalList: {
+    maxHeight: 320,
+    marginBottom: spacing.sm,
   },
   modalInput: {
     borderWidth: 1.5,
@@ -918,18 +1115,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.inputBg,
     color: colors.text,
-    fontSize: 17,
+    fontSize: fs(17, scale),
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
     marginBottom: spacing.md,
-    outlineStyle: 'none',
+    },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    marginBottom: spacing.sm,
   },
+  searchInput: { flex: 1, color: colors.text, fontSize: fs(15, scale), height: 44, paddingVertical: 0 },
   modalActions: { flexDirection: 'row', gap: spacing.sm },
   modalBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
   modalCancel: { backgroundColor: 'rgba(148, 163, 184, 0.1)', borderWidth: 1.5, borderColor: colors.border },
-  modalCancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
+  modalCancelText: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted },
   modalConfirm: { backgroundColor: colors.primary },
-  modalConfirmText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  modalConfirmText: { fontSize: fs(15, scale), fontWeight: '700', color: '#fff' },
   modalClose: { marginTop: spacing.md },
-  modalEmptyText: { fontSize: 15, color: colors.textDim, textAlign: 'center', paddingVertical: spacing.md, marginBottom: spacing.sm },
+  modalEmptyText: { fontSize: fs(15, scale), color: colors.textDim, textAlign: 'center', paddingVertical: spacing.md, marginBottom: spacing.sm },
 })

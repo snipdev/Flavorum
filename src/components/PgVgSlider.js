@@ -1,13 +1,16 @@
 import { View, Text, StyleSheet } from 'react-native'
 import Slider from '@react-native-community/slider'
-import { colors, spacing } from '../theme'
+import { fs, spacing } from '../theme'
+import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
-
-const PG_COLOR = colors.primaryLight
-const VG_COLOR = '#22d3ee'
 
 export default function PgVgSlider({ value, onChangeText, label }) {
   const { t } = useI18n()
+  const { theme, textScale } = useTheme()
+  const colors = theme
+  const styles = createStyles(colors, textScale)
+  const PG_COLOR = colors.primaryLight
+  const VG_COLOR = colors.vg
   const pg = Math.min(Math.max(parseFloat(value) || 0, 0), 100)
   const vg = 100 - pg
 
@@ -17,10 +20,10 @@ export default function PgVgSlider({ value, onChangeText, label }) {
         {label ? (
           <>
             <Text style={styles.label}>{label}</Text>
-            <BalanceText vg={vg} pg={pg} />
+            <BalanceText vg={vg} pg={pg} pgColor={PG_COLOR} colors={colors} scale={textScale} />
           </>
         ) : (
-          <BalanceText vg={vg} pg={pg} center />
+          <BalanceText vg={vg} pg={pg} pgColor={PG_COLOR} colors={colors} scale={textScale} center />
         )}
       </View>
       <Slider
@@ -39,25 +42,26 @@ export default function PgVgSlider({ value, onChangeText, label }) {
   )
 }
 
-function BalanceText({ vg, pg, center }) {
+function BalanceText({ vg, pg, pgColor, colors, center, scale }) {
   const { t } = useI18n()
+  const styles = createStyles(colors, scale)
   return (
     <View style={center ? styles.balanceCenter : styles.balanceText}>
-      <Text style={[styles.vgText, { color: VG_COLOR }]}>{vg}% {t('pgvg.vg')}</Text>
-      <Text style={styles.sep}> / </Text>
-      <Text style={[styles.pgText, { color: PG_COLOR }]}>{pg}% {t('pgvg.pg')}</Text>
+      <Text style={[styles.vgText, { color: colors.vg }]}>{vg}% {t('pgvg.vg')}</Text>
+      <Text style={[styles.sep, { color: colors.textMuted }]}> / </Text>
+      <Text style={[styles.pgText, { color: pgColor }]}>{pg}% {t('pgvg.pg')}</Text>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, scale = 1) => StyleSheet.create({
   container: { marginBottom: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  label: { fontSize: 15, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.3 },
+  label: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted, letterSpacing: 0.3 },
+  slider: { width: '100%', height: 36 },
   balanceText: { flexDirection: 'row', alignItems: 'center' },
   balanceCenter: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center' },
-  pgText: { fontSize: 15, fontWeight: '700' },
-  vgText: { fontSize: 15, fontWeight: '700' },
-  sep: { fontSize: 14, color: colors.textDim },
-  slider: { width: '100%', height: 36 },
+  pgText: { fontSize: fs(15, scale), fontWeight: '700' },
+  vgText: { fontSize: fs(15, scale), fontWeight: '700' },
+  sep: { fontSize: fs(14, scale) },
 })
