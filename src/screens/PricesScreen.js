@@ -3,17 +3,18 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from 
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing, useWideWeb, useSidebarWeb } from '../theme'
+import { fs, spacing, useLayoutMode } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
-import LangToggle from '../components/LangToggle'
-import ThemeToggle from '../components/ThemeToggle'
 import StickyHeader from '../components/StickyHeader'
+import ScreenHero from '../components/ScreenHero'
 import Input from '../components/Input'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import ConfirmDialog from '../components/ConfirmDialog'
+import UndoToast from '../components/UndoToast'
 import { loadPrices, savePrices, pricePerMl } from '../utils/prices'
 import { hapticLight } from '../utils/haptics'
+import { useUndo } from '../utils/useUndo'
 
 // VG/PG/nicotine are fixed slots — they can't be added or removed, only edited.
 // Default bottle size is 1000 ml so the price per ml works out of the box.
@@ -23,14 +24,31 @@ const BASE_DEFAULTS = {
   nic: { id: 'base-nic', type: 'nic', amountMl: 100, price: '' },
 }
 
-export default function PricesScreen() {
+export default function PricesScreen({ navigation, route }) {
   const { t } = useI18n()
   const { theme: colors, textScale } = useTheme()
   const styles = createStyles(colors, textScale)
-  const wide = useWideWeb()
-  const desktop = useSidebarWeb()
+  const { wide, desktop } = useLayoutMode()
   const headerRef = useRef(null)
   const onHeaderScroll = useCallback((e) => headerRef.current?.handleScroll(e), [])
+
+  // When a batch flavor chip links here ("add price"), pre-fill the add-form
+  // name and consume the param. `appliedPrefill` guards against re-applying,
+  // and resets once the param is cleared (i.e. after each navigation).
+  const appliedPrefill = useRef(null)
+  useEffect(() => {
+    const f = route?.params?.prefillFlavor
+    if (!f) {
+      appliedPrefill.current = null
+      return
+    }
+    if (f !== appliedPrefill.current) {
+      appliedPrefill.current = f
+      setName(f)
+      setError('')
+      navigation?.setParams({ prefillFlavor: undefined })
+    }
+  }, [route?.params?.prefillFlavor, navigation])
 
   const [prices, setPrices] = useState([])
   const [name, setName] = useState('')
@@ -44,6 +62,7 @@ export default function PricesScreen() {
   // Timestamp of the last save — shown as "Saved just now / 2 min ago" under the summary
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const [, forceRender] = useReducer(x => x + 1, 0)
+  const { undo, showUndo, dismissUndo, applyUndo } = useUndo()
 
   const flashSaved = (key) => {
     setSavedKey(key)
@@ -110,12 +129,21 @@ export default function PricesScreen() {
   }
 
   const remove = async (id) => {
+    const prev = prices
+    const target = prices.find(p => p.id === id)
     const next = prices.filter(p => p.id !== id)
     setPrices(next)
     setConfirmId(null)
     await savePrices(next)
     setLastSavedAt(Date.now())
     hapticLight()
+    if (target) {
+      showUndo(t('prices.undoDeleteMsg'), () => {
+        setPrices(prev)
+        savePrices(prev)
+        setLastSavedAt(Date.now())
+      })
+    }
   }
 
   const bases = Object.entries(BASE_DEFAULTS).map(([type, def]) => prices.find(p => p.type === type) || { ...def, name: type })
@@ -124,23 +152,7 @@ export default function PricesScreen() {
   const baseLabels = { vg: t('prices.vg'), pg: t('prices.pg'), nic: t('prices.nic') }
 
   const heroBlock = (
-    <View style={[styles.hero, desktop && styles.heroDesktop]}>
-      {!desktop && (
-        <View style={styles.iconCircle}>
-          <Ionicons name="pricetag" size={20} color={colors.primaryLight} />
-        </View>
-      )}
-      <View style={styles.heroText}>
-        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('prices.title')}</Text>
-        <Text style={styles.subtitle}>{t('prices.subtitle')}</Text>
-      </View>
-      {!desktop && (
-        <View style={styles.heroRight}>
-          <ThemeToggle />
-          <LangToggle />
-        </View>
-      )}
-    </View>
+    <ScreenHero icon="pricetag" title={t('prices.title')} subtitle={t('prices.subtitle')} desktop={desktop} />
   )
 
   const renderRow = (p) => {
@@ -389,6 +401,7 @@ export default function PricesScreen() {
         onCancel={() => setConfirmId(null)}
         onConfirm={() => confirmTarget && remove(confirmTarget.id)}
       />
+      {undo && <UndoToast message={undo.message} onUndo={applyUndo} onDismiss={dismissUndo} />}
     </SafeAreaView>
   )
 }
@@ -412,21 +425,6 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   wideRight: { width: 420, flexShrink: 0 },
   wideRightScroll: { flex: 1 },
   wideRightContent: { paddingTop: spacing.lg, paddingBottom: 48 },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
-  heroDesktop: { marginBottom: spacing.sm },
-  heroText: { flex: 1, flexShrink: 1 },
-  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: colors.primary + '33',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  titleDesktop: { fontSize: fs(18, scale) },
-  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',

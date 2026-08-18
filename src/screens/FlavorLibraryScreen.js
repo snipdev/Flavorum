@@ -3,7 +3,7 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, Platform
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing, useWideWeb, useSidebarWeb } from '../theme'
+import { fs, spacing, useLayoutMode } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { loadRecipes, loadBatches, saveRecipes, saveBatches, loadCustomFlavors, saveCustomFlavors, loadInventory, saveInventory, loadInventoryMeta, saveInventoryMeta, loadFlavorRecs, saveFlavorRecs, recomputeFlavorRecs, getRecValue, formatRecValues, findRec } from '../utils/recipes'
 import { useUndo } from '../utils/useUndo'
@@ -12,9 +12,8 @@ import { useEscToClose } from '../utils/useEscToClose'
 import { ELR_FLAVORS } from '../data/flavors'
 import { parseFlavorName, normalizeBrand } from '../utils/flavorUtils'
 import { useI18n } from '../i18n'
-import LangToggle from '../components/LangToggle'
-import ThemeToggle from '../components/ThemeToggle'
 import StickyHeader from '../components/StickyHeader'
+import ScreenHero from '../components/ScreenHero'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 function fuzzyScore(text, query) {
@@ -47,8 +46,7 @@ export default function FlavorLibraryScreen({ navigation }) {
   const { theme: colors, textScale } = useTheme()
   const styles = createStyles(colors, textScale)
   // Wide web (viewport >= 820px): flavor rows render as a two-column grid.
-  const wide = useWideWeb()
-  const desktop = useSidebarWeb()
+  const { wide, desktop } = useLayoutMode()
   const [loading, setLoading] = useState(true)
   const headerRef = useRef(null)
   const [brandFilter, setBrandFilter] = useState(null)
@@ -320,23 +318,7 @@ export default function FlavorLibraryScreen({ navigation }) {
   }, [detailFlavor, recipes, batches])
 
   const heroBlock = (
-    <View style={[styles.hero, desktop && styles.heroDesktop]}>
-      {!desktop && (
-        <View style={styles.iconCircle}>
-          <Ionicons name="leaf" size={20} color={colors.primaryLight} />
-        </View>
-      )}
-      <View style={styles.heroText}>
-        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('flavors.title')}</Text>
-        <Text style={styles.subtitle} numberOfLines={2}>{t('flavors.subtitle', { total: total.toLocaleString() })}</Text>
-      </View>
-      {!desktop && (
-        <View style={styles.heroRight}>
-          <ThemeToggle />
-          <LangToggle />
-        </View>
-      )}
-    </View>
+    <ScreenHero icon="leaf" title={t('flavors.title')} subtitle={t('flavors.subtitle', { total: total.toLocaleString() })} subtitleNumberOfLines={2} desktop={desktop} />
   )
 
   return (
@@ -749,22 +731,6 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   loadMoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
   loadMoreText: { fontSize: fs(13, scale), color: colors.textMuted },
   content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 100 },
-  // Sticky header above the list (narrow & wide — matches Build tab)
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
-  heroDesktop: { marginBottom: spacing.sm },
-  heroText: { flex: 1, flexShrink: 1 },
-  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: colors.primary + '1F',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  titleDesktop: { fontSize: fs(18, scale) },
-  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,

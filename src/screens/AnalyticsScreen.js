@@ -5,17 +5,16 @@ import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Clipboard from 'expo-clipboard'
 import Svg, { Circle } from 'react-native-svg'
-import { fs, spacing, isWeb, useWideWeb, useSidebarWeb } from '../theme'
+import { fs, spacing, isWeb, useLayoutMode } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
-import LangToggle from '../components/LangToggle'
-import ThemeToggle from '../components/ThemeToggle'
 import StickyHeader from '../components/StickyHeader'
+import ScreenHero from '../components/ScreenHero'
 import {
   loadRecipes, loadBatches, loadInventory,
   loadInventoryMeta, saveInventoryMeta,
 } from '../utils/recipes'
-import { loadPrices, estimateBatchCost } from '../utils/prices'
+import { loadPrices } from '../utils/prices'
 import { buildBackup, restoreBackup, downloadTextFile } from '../utils/backup'
 
 function UsageDonut({ recipeUses, batchUses, size = 148, stroke = 18, colors, usesLabel }) {
@@ -61,8 +60,7 @@ export default function AnalyticsScreen() {
   const { theme: colors, textScale } = useTheme()
   const styles = createStyles(colors, textScale)
   // Wide web (viewport >= 820px): charts render side by side.
-  const wide = useWideWeb()
-  const desktop = useSidebarWeb()
+  const { wide, desktop } = useLayoutMode()
 
   const [recipes, setRecipes] = useState([])
   const [batches, setBatches] = useState([])
@@ -165,16 +163,6 @@ export default function AnalyticsScreen() {
     return { recipes, batches }
   }, [usageMap])
 
-  // Per-batch cost estimate from the price table (flavors matched by name,
-  // VG/PG/nicotine from the base entries); per-flavor bottle metadata is the fallback.
-  const pricedBatches = useMemo(() => {
-    return [...batches].reverse().map(b => {
-      const { cost } = estimateBatchCost(b, prices, meta)
-      return { id: b.id, name: b.name || '\u2014', cost }
-    })
-  }, [batches, prices, meta])
-  const maxBatchCost = pricedBatches.reduce((m, b) => Math.max(m, b.cost), 0)
-
   // Cost totals: sum of the price table when it has entries, else inventory meta
   const totalCost = prices.length > 0
     ? prices.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0)
@@ -220,23 +208,7 @@ export default function AnalyticsScreen() {
   }
 
   const heroBlock = (
-    <View style={[styles.hero, desktop && styles.heroDesktop]}>
-      {!desktop && (
-        <View style={styles.iconCircle}>
-          <Ionicons name="bar-chart" size={20} color={colors.primaryLight} />
-        </View>
-      )}
-      <View style={styles.heroText}>
-        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('analytics.title')}</Text>
-        <Text style={styles.subtitle}>{t('analytics.subtitle')}</Text>
-      </View>
-      {!desktop && (
-        <View style={styles.heroRight}>
-          <ThemeToggle />
-          <LangToggle />
-        </View>
-      )}
-    </View>
+    <ScreenHero icon="bar-chart" title={t('analytics.title')} subtitle={t('analytics.subtitle')} desktop={desktop} />
   )
 
   return (
@@ -355,37 +327,6 @@ export default function AnalyticsScreen() {
           </View>
         </View>
 
-        {/* Batch Costs */}
-        <View style={[styles.card, styles.batchCostCard]}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="wallet-outline" size={14} color={colors.primaryLight} />
-            <Text style={styles.sectionTitle}>{t('analytics.batchCosts')}</Text>
-          </View>
-          {pricedBatches.length === 0 ? (
-            <Text style={styles.noData}>{t('analytics.noData')}</Text>
-          ) : (
-            pricedBatches.slice(0, 8).map(b => {
-              const pct = maxBatchCost > 0 && b.cost > 0 ? Math.max((b.cost / maxBatchCost) * 100, 4) : 0
-              return (
-                <View key={b.id} style={styles.costRow}>
-                  <View style={styles.costRowTop}>
-                    <Text style={styles.costName} numberOfLines={1}>{b.name}</Text>
-                    <Text style={styles.costValue}>
-                      {b.cost > 0 ? b.cost.toFixed(2) : '\u2014'}
-                    </Text>
-                  </View>
-                  <View style={styles.costBarTrack}>
-                    <View style={[styles.costBarFill, { width: `${pct}%` }]} />
-                  </View>
-                </View>
-              )
-            })
-          )}
-          {pricedBatches.length > 0 && (
-            <Text style={styles.costHint}>{t('analytics.batchCostHint')}</Text>
-          )}
-        </View>
-
         {/* Data backup & restore */}
         <View style={[styles.card, styles.dataCard]}>
           <View style={styles.sectionHeader}>
@@ -432,47 +373,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 100 },
-  // Sticky header above the scroll (narrow & wide — matches Build tab)
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
-  heroDesktop: { marginBottom: spacing.sm },
-  heroText: { flex: 1 },
-  heroRight: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconCircle: {
-    width: 40, height: 40, borderRadius: 13,
-    backgroundColor: colors.primary + '33',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  titleDesktop: { fontSize: fs(18, scale) },
-  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
 
-  batchCostCard: { marginTop: spacing.md },
-  costRow: {
-    gap: 6,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  costRowTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  costName: { flex: 1, fontSize: fs(13, scale), color: colors.text },
-  costValue: { fontSize: fs(14, scale), fontWeight: '700', color: colors.success },
-  costBarTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.inputBg,
-    overflow: 'hidden',
-  },
-  costBarFill: {
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: colors.success,
-  },
-  costHint: { fontSize: fs(11, scale), color: colors.textDim, marginTop: 8 },
   dataCard: { marginTop: spacing.md },
   dataSubtitle: { fontSize: fs(13, scale), color: colors.textMuted, lineHeight: 19, marginBottom: spacing.md },
   dataActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

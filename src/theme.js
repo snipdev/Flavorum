@@ -27,20 +27,29 @@ export const sidebarWebBreakpoint = 820
 export const sidebarWebWidth = 200
 export const isWeb = Platform.OS === 'web'
 
-export function useWideWeb() {
+// Single source of truth for the web layout mode. Everything that needs to
+// know whether the UI is in desktop (sidebar), wide (two-column) or mobile
+// mode reads from this one hook, so the breakpoint + sidebar-width math lives
+// in exactly one place instead of being duplicated across screens and App.js.
+export function useLayoutMode() {
   const { width } = useWindowDimensions()
-  if (!isWeb) return false
-  // The left sidebar eats 200px, so the two-column layouts must judge their
-  // room by the *content* width, not the viewport. At viewports where the
-  // sidebar is present the content is narrower — columns only unlock once it
-  // is actually wide enough (viewport >= 820 + 200).
-  const contentWidth = width >= sidebarWebBreakpoint ? width - sidebarWebWidth : width
-  return contentWidth >= wideWebBreakpoint
+  if (!isWeb) return { desktop: false, wide: false, contentWidth: width, sidebarWidth: 0 }
+  const desktop = width >= sidebarWebBreakpoint
+  const contentWidth = desktop ? width - sidebarWebWidth : width
+  return {
+    desktop,
+    wide: contentWidth >= wideWebBreakpoint,
+    contentWidth,
+    sidebarWidth: desktop ? sidebarWebWidth : 0,
+  }
+}
+
+export function useWideWeb() {
+  return useLayoutMode().wide
 }
 
 export function useSidebarWeb() {
-  const { width } = useWindowDimensions()
-  return isWeb && width >= sidebarWebBreakpoint
+  return useLayoutMode().desktop
 }
 
 // Fades a shadow in/out as `active` flips — used by the sticky header and the
@@ -125,6 +134,7 @@ export const themeVariants = {
     danger: '#F87171',
     warning: '#FBBF24',
     vg: '#22D3EE',
+    flavor: '#60A5FA',
     glass: 'rgba(255,255,255,0.08)',
     glassBorder: 'rgba(255,255,255,0.16)',
     glassBorderStrong: 'rgba(251,191,36,0.30)',
@@ -155,6 +165,7 @@ export const themeVariants = {
     danger: '#F87171',
     warning: '#FBBF24',
     vg: '#22D3EE',
+    flavor: '#A78BFA',
     glass: 'rgba(255,255,255,0.08)',
     glassBorder: 'rgba(255,255,255,0.16)',
     glassBorderStrong: 'rgba(167,139,250,0.32)',
@@ -185,6 +196,7 @@ export const themeVariants = {
     danger: '#F87171',
     warning: '#FBBF24',
     vg: '#F472B6',
+    flavor: '#38BDF8',
     glass: 'rgba(255,255,255,0.08)',
     glassBorder: 'rgba(255,255,255,0.16)',
     glassBorderStrong: 'rgba(34,211,238,0.32)',
@@ -215,6 +227,7 @@ export const themeVariants = {
     danger: '#F87171',
     warning: '#FBBF24',
     vg: '#22D3EE',
+    flavor: '#60A5FA',
     glass: 'rgba(255,255,255,0.09)',
     glassBorder: 'rgba(255,255,255,0.20)',
     glassBorderStrong: 'rgba(52,211,153,0.35)',
@@ -245,6 +258,7 @@ export const themeVariants = {
     danger: '#F87171',
     warning: '#FACC15',
     vg: '#60A5FA',
+    flavor: '#60A5FA',
     glass: 'rgba(255,255,255,0.11)',
     glassBorder: 'rgba(255,255,255,0.38)',
     glassBorderStrong: 'rgba(250,204,21,0.55)',
@@ -275,6 +289,7 @@ export const themeVariants = {
     danger: '#DC2626',
     warning: '#D97706',
     vg: '#0891B2',
+    flavor: '#2563EB',
     glass: 'rgba(255,255,255,0.65)',
     glassBorder: 'rgba(0,0,0,0.10)',
     glassBorderStrong: 'rgba(217,119,6,0.35)',
@@ -305,6 +320,7 @@ export const themeVariants = {
     danger: '#DC2626',
     warning: '#D97706',
     vg: '#0891B2',
+    flavor: '#4F46E5',
     glass: 'rgba(255,255,255,0.65)',
     glassBorder: 'rgba(0,0,0,0.10)',
     glassBorderStrong: 'rgba(124,58,237,0.35)',
@@ -335,6 +351,7 @@ export const themeVariants = {
     danger: '#DC2626',
     warning: '#D97706',
     vg: '#DB2777',
+    flavor: '#0284C7',
     glass: 'rgba(255,255,255,0.65)',
     glassBorder: 'rgba(0,0,0,0.10)',
     glassBorderStrong: 'rgba(8,145,178,0.35)',
@@ -365,6 +382,7 @@ export const themeVariants = {
     danger: '#DC2626',
     warning: '#D97706',
     vg: '#0891B2',
+    flavor: '#2563EB',
     glass: 'rgba(255,255,255,0.65)',
     glassBorder: 'rgba(0,0,0,0.10)',
     glassBorderStrong: 'rgba(5,150,105,0.35)',
@@ -395,6 +413,7 @@ export const themeVariants = {
     danger: '#B91C1C',
     warning: '#B45309',
     vg: '#2563EB',
+    flavor: '#2563EB',
     glass: 'rgba(255,255,255,0.75)',
     glassBorder: 'rgba(0,0,0,0.14)',
     glassBorderStrong: 'rgba(202,138,4,0.45)',

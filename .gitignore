@@ -43,3 +43,6 @@ yarn-error.*
 .vercel
 .env*
 *.log
+
+# Temp / preview tooling
+.freebuff/

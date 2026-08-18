@@ -6,10 +6,9 @@ import { Ionicons } from '@expo/vector-icons'
 import ConfirmDialog from '../components/ConfirmDialog'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import Input from '../components/Input'
-import LangToggle from '../components/LangToggle'
-import ThemeToggle from '../components/ThemeToggle'
 import StickyHeader from '../components/StickyHeader'
-import { fs, spacing, tagColors, useWideWeb, useSidebarWeb } from '../theme'
+import ScreenHero from '../components/ScreenHero'
+import { fs, spacing, tagColors, useLayoutMode } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { loadRecipes, saveRecipes, newRecipeId, seedStarterRecipes, loadInventory, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
 import { formatRecipeText } from '../utils/shareUtils'
@@ -25,8 +24,7 @@ export default function RecipesScreen({ navigation }) {
   const { theme: colors, textScale } = useTheme()
   const styles = createStyles(colors, textScale)
   // Wide web (viewport >= 820px): recipe cards render as a two-column grid.
-  const wide = useWideWeb()
-  const desktop = useSidebarWeb()
+  const { wide, desktop } = useLayoutMode()
   const scrollRef = useRef(null)
   const [recipes, setRecipes] = useState([])
   const [inventory, setInventory] = useState([])
@@ -237,6 +235,8 @@ export default function RecipesScreen({ navigation }) {
 
   const remove = useCallback(async (id) => {
     const target = recipes.find(r => r.id === id)
+    const prevRecipes = recipes
+    const prevFlavorRecs = flavorRecs
     const updated = recipes.filter(r => r.id !== id)
     setRecipes(updated)
     await saveRecipes(updated)
@@ -244,8 +244,8 @@ export default function RecipesScreen({ navigation }) {
     setFlavorRecs(nextRecs)
     if (target) {
       showUndo(t('recipes.undoDeleteMsg'), () => {
-        setRecipes(recipes)
-        saveRecipes(recipes).then(() => recomputeFlavorRecs(recipes, flavorRecs)).then(setFlavorRecs)
+        setRecipes(prevRecipes)
+        saveRecipes(prevRecipes).then(() => recomputeFlavorRecs(prevRecipes, prevFlavorRecs)).then(setFlavorRecs)
       })
     }
   }, [recipes, flavorRecs, showUndo, t])
@@ -264,23 +264,7 @@ export default function RecipesScreen({ navigation }) {
   }
 
   const heroBlock = (
-    <View style={[styles.hero, desktop && styles.heroDesktop]}>
-      {!desktop && (
-        <View style={styles.iconCircle}>
-          <Ionicons name="bookmark" size={20} color={colors.primaryLight} />
-        </View>
-      )}
-      <View style={styles.heroText}>
-        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('recipes.title')}</Text>
-        <Text style={styles.subtitle} numberOfLines={2}>{t('recipes.subtitle')}</Text>
-      </View>
-      {!desktop && (
-        <View style={styles.heroRight}>
-          <ThemeToggle />
-          <LangToggle />
-        </View>
-      )}
-    </View>
+    <ScreenHero icon="bookmark" title={t('recipes.title')} subtitle={t('recipes.subtitle')} subtitleNumberOfLines={2} desktop={desktop} />
   )
 
   return (
@@ -834,22 +818,6 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   kav: { flex: 1 },
   scroll: { flex: 1 },
   content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 100 },
-  // Sticky header above the list (narrow & wide — matches Build tab)
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
-  heroDesktop: { marginBottom: spacing.sm },
-  heroText: { flex: 1, flexShrink: 1 },
-  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: colors.primary + '33',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  titleDesktop: { fontSize: fs(18, scale) },
-  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,

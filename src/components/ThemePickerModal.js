@@ -6,9 +6,20 @@ import { fs, themeVariants, isWeb } from '../theme'
 import { useTheme, TEXT_SCALE_PRESETS } from '../ThemeContext'
 import { useI18n } from '../i18n'
 import { useEscToClose } from '../utils/useEscToClose'
+import { auditAllThemes, AA_NORMAL } from '../utils/contrast'
 
 const DARK_KEYS = ['ember', 'nebula', 'glacier', 'obsidian', 'contrast']
 const LIGHT_KEYS = ['emberLight', 'nebulaLight', 'glacierLight', 'obsidianLight', 'contrastLight']
+
+// Number of WCAG AA (< 4.5:1) failures per theme — surfaces accessibility
+// regressions directly in the theme picker instead of only the dev console.
+const FAIL_MAP = (() => {
+  const map = {}
+  for (const { key, pairs } of auditAllThemes(themeVariants)) {
+    map[key] = pairs.filter(p => p.ratio < AA_NORMAL).length
+  }
+  return map
+})()
 
 export default function ThemePickerModal({ visible, onClose }) {
   const { theme, key: active, setTheme, textScale, setTextScale } = useTheme()
@@ -83,6 +94,12 @@ export default function ThemePickerModal({ visible, onClose }) {
                   <Text style={[styles.optionText, { color: isActive ? tv.primaryLight : theme.text }]}>
                     {tv.name}
                   </Text>
+                  {FAIL_MAP[key] > 0 && (
+                    <View style={[styles.contrastBadge, { borderColor: tv.danger + '55', backgroundColor: tv.danger + '1A' }]}>
+                      <Ionicons name="warning" size={11} color={tv.danger} importantForAccessibility="no" />
+                      <Text style={[styles.contrastBadgeText, { color: tv.danger }]}>{t('theme.lowContrast')}</Text>
+                    </View>
+                  )}
                   {isActive && <Ionicons name="checkmark-circle" size={18} color={tv.primaryLight} />}
                 </TouchableOpacity>
               )
@@ -105,6 +122,12 @@ export default function ThemePickerModal({ visible, onClose }) {
                   <Text style={[styles.optionText, { color: isActive ? tv.primaryLight : theme.text }]}>
                     {tv.name}
                   </Text>
+                  {FAIL_MAP[key] > 0 && (
+                    <View style={[styles.contrastBadge, { borderColor: tv.danger + '55', backgroundColor: tv.danger + '1A' }]}>
+                      <Ionicons name="warning" size={11} color={tv.danger} importantForAccessibility="no" />
+                      <Text style={[styles.contrastBadgeText, { color: tv.danger }]}>{t('theme.lowContrast')}</Text>
+                    </View>
+                  )}
                   {isActive && <Ionicons name="checkmark-circle" size={18} color={tv.primaryLight} />}
                 </TouchableOpacity>
               )
@@ -237,6 +260,16 @@ const createStyles = (theme, scale = 1) => StyleSheet.create({
   },
   dot: { width: 14, height: 14, borderRadius: 7 },
   optionText: { flex: 1, fontSize: fs(15, scale), fontWeight: '600' },
+  contrastBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  contrastBadgeText: { fontSize: fs(9, scale), fontWeight: '700' },
   textSizeRow: { flexDirection: 'row', gap: 6, marginBottom: 16 },
   textSizeBtn: {
     flex: 1,

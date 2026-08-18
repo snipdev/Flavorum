@@ -17,7 +17,7 @@ import PricesScreen from './src/screens/PricesScreen'
 import { ThemeProvider, useTheme } from './src/ThemeContext'
 import ThemeToggle from './src/components/ThemeToggle'
 import LangToggle from './src/components/LangToggle'
-import { webMaxWidth, wideWebMaxWidth, sidebarWebWidth, isWeb, useWideWeb, useSidebarWeb } from './src/theme'
+import { webMaxWidth, wideWebMaxWidth, sidebarWebWidth, isWeb, useLayoutMode } from './src/theme'
 import { LanguageProvider, useI18n } from './src/i18n'
 import { hapticLight } from './src/utils/haptics'
 
@@ -158,21 +158,19 @@ function AppInner() {
 // large viewports. The content wrapper stays centered with its own max width,
 // so the two-column screen layouts keep their proportions.
 function WebShell({ routeName }) {
-  const sidebar = useSidebarWeb()
-  const wide = useWideWeb()
-  const { width: viewportWidth } = useWindowDimensions()
-  if (sidebar) {
+  const { desktop, wide, contentWidth } = useLayoutMode()
+  if (desktop) {
     // Desktop viewports: left sidebar replaces the bottom bar. The wrapper
     // is fluid — it fills whatever room the sidebar leaves (up to the wide
     // max width) instead of parking a fixed phone-width column beside the
     // sidebar with dead space on the right. Once the content is wide enough
     // the screens switch to two columns inside that same full width.
-    const contentWidth = Math.min(Math.max(viewportWidth - sidebarWebWidth, 320), wideWebMaxWidth)
+    const width = Math.min(Math.max(contentWidth, 320), wideWebMaxWidth)
     return (
       <View style={styles.desktopRow}>
         <DesktopSidebar routeName={routeName} />
         <View style={styles.desktopMain}>
-          <View style={[styles.webWrapper, { maxWidth: contentWidth }]}>
+          <View style={[styles.webWrapper, { maxWidth: width }]}>
             <TabNavigator />
           </View>
         </View>
@@ -377,8 +375,8 @@ function MobileTabBar({ state, descriptors, navigation, insets }) {
 // The bottom tab bar stays for mobile/medium widths; on desktop viewports
 // WebShell renders the left sidebar and this bar renders nothing at all.
 function ResponsiveTabBar(props) {
-  const sidebar = useSidebarWeb()
-  if (sidebar) return null
+  const { desktop } = useLayoutMode()
+  if (desktop) return null
   return <MobileTabBar {...props} />
 }
 

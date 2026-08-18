@@ -3,14 +3,14 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from 
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing, isWeb, useWideWeb, useSidebarWeb } from '../theme'
+import { fs, spacing, isWeb, useLayoutMode } from '../theme'
 import { useTheme } from '../ThemeContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import LangToggle from '../components/LangToggle'
-import ThemeToggle from '../components/ThemeToggle'
 import StickyHeader from '../components/StickyHeader'
+import ScreenHero from '../components/ScreenHero'
 import BottleSVG from '../components/BottleSVG'
-import { loadBatches, saveBatches } from '../utils/recipes'
+import { loadBatches, saveBatches, loadInventoryMeta } from '../utils/recipes'
+import { loadPrices, estimateBatchCost, pricePerMl } from '../utils/prices'
 import { scheduleSteepNotification, cancelNotification, requestNotifPermission } from '../utils/notifUtils'
 import { useUndo } from '../utils/useUndo'
 import UndoToast from '../components/UndoToast'
@@ -27,9 +27,10 @@ export default function BatchScreen({ navigation }) {
   const { theme: colors, textScale } = useTheme()
   const styles = createStyles(colors, textScale)
   // Wide web (viewport >= 820px): batch cards render as a two-column grid.
-  const wide = useWideWeb()
-  const desktop = useSidebarWeb()
+  const { wide, desktop } = useLayoutMode()
   const [batches, setBatches] = useState([])
+  const [prices, setPrices] = useState([])
+  const [priceMeta, setPriceMeta] = useState({})
   const [confirmId, setConfirmId] = useState(null)
   const [reminderFeedback, setReminderFeedback] = useState(null)
   const [query, setQuery] = useState('')
@@ -66,21 +67,32 @@ export default function BatchScreen({ navigation }) {
     useCallback(() => {
       let active = true
       loadBatches().then(list => { if (active) setBatches(list) })
+      loadPrices().then(list => { if (active) setPrices(list || []) })
+      loadInventoryMeta().then(m => { if (active) setPriceMeta(m || {}) })
       return () => { active = false }
     }, [])
   )
+
+  // A flavor has price info when it is in the price table, or when the
+  // inventory metadata carries a bottle price (the cost estimator's fallback).
+  const hasFlavorPrice = useCallback((name) => {
+    if (prices.some(p => p.type === 'flavor' && p.name === name)) return true
+    const m = priceMeta[name]
+    return !!(m && parseFloat(m.price) > 0 && parseFloat(m.bottleMl) > 0)
+  }, [prices, priceMeta])
 
   const { undo, showUndo, dismissUndo, applyUndo } = useUndo()
 
   const remove = useCallback((id) => {
     const target = batches.find(b => b.id === id)
+    const prev = batches
     const updated = batches.filter(b => b.id !== id)
     setBatches(updated)
     saveBatches(updated).catch(() => {})
     if (target) {
       showUndo(t('batches.undoDeleteMsg'), () => {
-        setBatches(batches)
-        saveBatches(batches).catch(() => {})
+        setBatches(prev)
+        saveBatches(prev).catch(() => {})
       })
     }
   }, [batches, showUndo, t])
@@ -151,10 +163,10 @@ export default function BatchScreen({ navigation }) {
       return {
         total: resTotal,
         segs: [
-          { label: 'PG', pct: (parseFloat(b.result.pgNeeded) / resTotal) * 100, color: '#f97316' },
-          { label: 'VG', pct: (parseFloat(b.result.vgNeeded) / resTotal) * 100, color: '#22c55e' },
-          { label: t('build.nicotine'), pct: (parseFloat(b.result.nicMl) / resTotal) * 100, color: '#ef4444' },
-          { label: t('build.flavor.mode'), pct: (parseFloat(b.result.flavorMl) / resTotal) * 100, color: '#3b82f6' },
+          { label: 'PG', pct: (parseFloat(b.result.pgNeeded) / resTotal) * 100, color: colors.warning },
+          { label: 'VG', pct: (parseFloat(b.result.vgNeeded) / resTotal) * 100, color: colors.success },
+          { label: t('build.nicotine'), pct: (parseFloat(b.result.nicMl) / resTotal) * 100, color: colors.danger },
+          { label: t('build.flavor.mode'), pct: (parseFloat(b.result.flavorMl) / resTotal) * 100, color: colors.flavor },
         ].filter(s => s.pct > 0.05),
       }
     }
@@ -186,32 +198,16 @@ export default function BatchScreen({ navigation }) {
     return {
       total: Math.round(vol * 10) / 10,
       segs: [
-        { label: 'PG', pct: (pgMl / vol) * 100, color: '#f97316' },
-        { label: 'VG', pct: (vgMl / vol) * 100, color: '#22c55e' },
-        { label: t('build.nicotine'), pct: (nicMl / vol) * 100, color: '#ef4444' },
-        { label: t('build.flavor.mode'), pct: (flavorMl / vol) * 100, color: '#3b82f6' },
+        { label: 'PG', pct: (pgMl / vol) * 100, color: colors.warning },
+        { label: 'VG', pct: (vgMl / vol) * 100, color: colors.success },
+        { label: t('build.nicotine'), pct: (nicMl / vol) * 100, color: colors.danger },
+        { label: t('build.flavor.mode'), pct: (flavorMl / vol) * 100, color: colors.flavor },
       ].filter(s => s.pct > 0.05),
     }
   }
 
   const heroBlock = (
-    <View style={[styles.hero, desktop && styles.heroDesktop]}>
-      {!desktop && (
-        <View style={styles.iconCircle}>
-          <Ionicons name="layers" size={20} color={colors.primaryLight} />
-        </View>
-      )}
-      <View style={styles.heroText}>
-        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('batches.title')}</Text>
-        <Text style={styles.subtitle} numberOfLines={2}>{t('batches.subtitle')}</Text>
-      </View>
-      {!desktop && (
-        <View style={styles.heroRight}>
-          <ThemeToggle />
-          <LangToggle />
-        </View>
-      )}
-    </View>
+    <ScreenHero icon="layers" title={t('batches.title')} subtitle={t('batches.subtitle')} subtitleNumberOfLines={2} desktop={desktop} />
   )
 
   return (
@@ -330,9 +326,24 @@ export default function BatchScreen({ navigation }) {
                 <View style={styles.detailBlock}>
                   <Text style={styles.detailLabel}>{t('batches.flavors')}</Text>
                   <View style={styles.flavorList}>
-                    {b.flavors.map((f, i) => (
-                      <View key={i} style={[styles.chip, styles.chipSuccess]}><Text style={[styles.chipText, styles.chipTextSuccess]}>{f.name || t('recipes.flavorN', { i: i + 1 })} {f.value}%</Text></View>
-                    ))}
+                    {b.flavors.map((f, i) => {
+                      const nm = f.name || t('recipes.flavorN', { i: i + 1 })
+                      return hasFlavorPrice(f.name) ? (
+                        <View key={i} style={[styles.chip, styles.chipSuccess]}><Text style={[styles.chipText, styles.chipTextSuccess]}>{nm} {f.value}%</Text></View>
+                      ) : (
+                        <TouchableOpacity
+                          key={i}
+                          style={[styles.chip, styles.chipPriceMissing]}
+                          onPress={() => navigation.navigate('prices', { prefillFlavor: f.name })}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${nm} — ${t('batches.addPrice')}`}
+                        >
+                          <Ionicons name="pricetag-outline" size={12} color={colors.warning} />
+                          <Text style={[styles.chipText, styles.chipTextPriceMissing]}>{nm} {f.value}%</Text>
+                        </TouchableOpacity>
+                      )
+                    })}
                   </View>
                 </View>
               )}
@@ -369,6 +380,47 @@ export default function BatchScreen({ navigation }) {
                   <Text style={styles.detailText}>{t('build.resultDetail2', { total: b.result.actualTotal, nic: b.result.actualNic })}</Text>
                 </View>
               ) : null}
+
+              {(() => {
+                const { cost, baseMl } = estimateBatchCost(b, prices, priceMeta)
+                const missingFlavor = Array.isArray(b.flavors)
+                  ? b.flavors.find(f => !hasFlavorPrice(f.name))
+                  : null
+                const baseMissing = (type) => baseMl[type] > 0 && pricePerMl(prices.find(p => p.type === type)) == null
+                const warnings = []
+                if (missingFlavor) warnings.push({ key: 'flavors', label: t('batches.costMissingFlavors'), flavor: missingFlavor.name })
+                if (baseMissing('vg')) warnings.push({ key: 'vg', label: t('batches.addBasePrice', { label: t('prices.vg') }) })
+                if (baseMissing('pg')) warnings.push({ key: 'pg', label: t('batches.addBasePrice', { label: t('prices.pg') }) })
+                if (baseMissing('nic')) warnings.push({ key: 'nic', label: t('batches.addBasePrice', { label: t('prices.nic') }) })
+                return (
+                  <View style={styles.costBlock}>
+                    <View style={styles.costRow}>
+                      <Ionicons name="wallet-outline" size={14} color={colors.primaryLight} />
+                      <Text style={styles.costLabel}>{t('batches.cost')}</Text>
+                      <Text style={styles.costValue}>
+                        {cost > 0 ? (warnings.length > 0 ? `~${cost.toFixed(2)}` : cost.toFixed(2)) : '\u2014'}
+                      </Text>
+                    </View>
+                    {warnings.length > 0 && (
+                      <View style={styles.costWarnings}>
+                        {warnings.map(w => (
+                          <TouchableOpacity
+                            key={w.key}
+                            style={styles.costWarnChip}
+                            onPress={() => navigation.navigate('prices', w.flavor ? { prefillFlavor: w.flavor } : undefined)}
+                            activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityLabel={w.label}
+                          >
+                            <Ionicons name="alert-circle" size={12} color={colors.warning} />
+                            <Text style={styles.costWarnText}>{w.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )
+              })()}
 
               {/* 5-Star Rating & Tasting Notes */}
               <View style={styles.detailBlock}>
@@ -451,22 +503,6 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 100 },
-  // Sticky header above the scroll (narrow & wide — matches Build tab)
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
-  heroDesktop: { marginBottom: spacing.sm },
-  heroText: { flex: 1, flexShrink: 1 },
-  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: colors.primary + '33',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  titleDesktop: { fontSize: fs(18, scale) },
-  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   batchCard: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -534,9 +570,19 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   chip: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   chipPrimary: { backgroundColor: colors.primary + '26' },
   chipSuccess: { backgroundColor: colors.success + '26' },
+  chipPriceMissing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.warning + '1F',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.warning + '66',
+  },
   chipText: { fontSize: fs(13, scale), fontWeight: '500' },
   chipTextPrimary: { color: colors.primaryLight },
   chipTextSuccess: { color: colors.success },
+  chipTextPriceMissing: { color: colors.warning },
   modeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   modeBadgeFlavor: { backgroundColor: colors.success + '33', borderWidth: 1, borderColor: colors.success + '66' },
   modeBadgeMix: { backgroundColor: colors.primary + '33', borderWidth: 1, borderColor: colors.primary + '66' },
@@ -566,6 +612,33 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   detailText: { fontSize: fs(14, scale), color: colors.textMuted, marginBottom: 2 },
   flavorList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  costBlock: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.primary + '33',
+  },
+  costRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  costLabel: { flex: 1, fontSize: fs(14, scale), color: colors.textMuted },
+  costValue: { fontSize: fs(14, scale), fontWeight: '700', color: colors.text },
+  costWarnings: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  costWarnChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.warning + '1F',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.warning + '66',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  costWarnText: { fontSize: fs(12, scale), fontWeight: '600', color: colors.warning },
   toolbar: {
     flexDirection: 'row',
     flexWrap: 'wrap',

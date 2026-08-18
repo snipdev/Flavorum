@@ -7,10 +7,9 @@ import SliderInput from '../components/SliderInput'
 import PgVgSlider from '../components/PgVgSlider'
 import ResultBox from '../components/ResultBox'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
-import LangToggle from '../components/LangToggle'
-import ThemeToggle from '../components/ThemeToggle'
 import StickyHeader from '../components/StickyHeader'
-import { fs, spacing, useWideWeb, useSidebarWeb, dockShadow, useShadowFade } from '../theme'
+import ScreenHero from '../components/ScreenHero'
+import { fs, spacing, useLayoutMode, dockShadow, useShadowFade } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { calculateNicotine } from '../utils/calculations'
 import { loadRecipes, saveRecipes, loadBatches, saveBatches, newBatchId, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
@@ -101,8 +100,7 @@ export default function NicotineScreen({ navigation, route }) {
   const styles = createStyles(colors, textScale)
   // Wide web (viewport >= 920px) unlocks the two-column desktop layout;
   // everything below that — and all of mobile — keeps the single column.
-  const wide = useWideWeb()
-  const desktop = useSidebarWeb()
+  const { wide, desktop } = useLayoutMode()
   const [showTop, setShowTop] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const dockShadowOpacity = useShadowFade(scrolled)
@@ -390,21 +388,21 @@ export default function NicotineScreen({ navigation, route }) {
 
   const items = result ? [
     { value: result.isPossible ? t('build.readyToMix') : t('build.impossibleMix'), badge: result.isPossible ? 'success' : 'danger' },
-    { label: ingredientMode === 'mix' ? t('build.concentrate') : t('build.flavorToAdd'), value: `${result.flavorMl} ml`, accent: '#3b82f6' },
-    ...(result.flavorBreakdown || []).map(f => ({ label: f.name, value: `${f.ml} ml`, sub: true, accent: '#3b82f6' })),
-    { label: t('build.nicToAdd'), value: `${result.nicMl} ml`, accent: '#ef4444' },
-    ...(result.nicBreakdown || []).map(n => ({ label: n.name, value: `${n.ml} ml`, sub: true, accent: '#ef4444' })),
-    { label: t('build.pgToAdd'), value: `${result.pgNeeded} ml`, accent: '#f97316' },
-    { label: t('build.vgToAdd'), value: `${result.vgNeeded} ml`, accent: '#22c55e' },
+    { label: ingredientMode === 'mix' ? t('build.concentrate') : t('build.flavorToAdd'), value: `${result.flavorMl} ml`, accent: colors.flavor },
+    ...(result.flavorBreakdown || []).map(f => ({ label: f.name, value: `${f.ml} ml`, sub: true, accent: colors.flavor })),
+    { label: t('build.nicToAdd'), value: `${result.nicMl} ml`, accent: colors.danger },
+    ...(result.nicBreakdown || []).map(n => ({ label: n.name, value: `${n.ml} ml`, sub: true, accent: colors.danger })),
+    { label: t('build.pgToAdd'), value: `${result.pgNeeded} ml`, accent: colors.warning },
+    { label: t('build.vgToAdd'), value: `${result.vgNeeded} ml`, accent: colors.success },
     { label: t('build.totalLiquidRes'), value: `${result.actualTotal} ml`, total: true },
   ] : null
 
   const composition = result && result.actualTotal > 0
     ? [
-        { label: 'PG', pct: (result.pgNeeded / result.actualTotal) * 100, color: '#f97316' },
-        { label: 'VG', pct: (result.vgNeeded / result.actualTotal) * 100, color: '#22c55e' },
-        { label: t('build.nicotine'), pct: (result.nicMl / result.actualTotal) * 100, color: '#ef4444' },
-        { label: t('build.flavor.mode'), pct: (result.flavorMl / result.actualTotal) * 100, color: '#3b82f6' },
+        { label: 'PG', pct: (result.pgNeeded / result.actualTotal) * 100, color: colors.warning },
+        { label: 'VG', pct: (result.vgNeeded / result.actualTotal) * 100, color: colors.success },
+        { label: t('build.nicotine'), pct: (result.nicMl / result.actualTotal) * 100, color: colors.danger },
+        { label: t('build.flavor.mode'), pct: (result.flavorMl / result.actualTotal) * 100, color: colors.flavor },
       ].filter(s => s.pct > 0.05)
     : []
 
@@ -414,23 +412,7 @@ export default function NicotineScreen({ navigation, route }) {
   // columns (so Theme/Lang controls sit at the app's far right, like other tabs),
   // while the narrow layout keeps it as the first scrolled block.
   const heroBlock = (
-    <View style={[styles.hero, desktop && styles.heroDesktop]}>
-      {!desktop && (
-        <View style={styles.iconCircle}>
-          <Ionicons name="flask" size={20} color={colors.primaryLight} />
-        </View>
-      )}
-      <View style={styles.heroText}>
-        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('build.title')}</Text>
-        <Text style={styles.subtitle} numberOfLines={2}>{t('app.tagline')}</Text>
-      </View>
-      {!desktop && (
-        <View style={styles.heroRight}>
-          <ThemeToggle />
-          <LangToggle />
-        </View>
-      )}
-    </View>
+    <ScreenHero icon="flask" title={t('build.title')} subtitle={t('app.tagline')} subtitleNumberOfLines={2} desktop={desktop} />
   )
 
   const formSections = (
@@ -994,21 +976,6 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   modeBtnText: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500' },
   modeBtnTextActive: { color: colors.primaryLight },
   customSpacing: { marginTop: spacing.md },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
-  heroDesktop: { marginBottom: spacing.sm },
-  heroText: { flex: 1, flexShrink: 1 },
-  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: colors.primary + '1F',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  titleDesktop: { fontSize: fs(18, scale) },
-  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,

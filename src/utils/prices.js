@@ -30,23 +30,46 @@ export function pricePerMl(p) {
 /**
  * Estimate what a batch costs to make, from the price table.
  * Includes flavor concentrates (matched by name) and the base liquids
- * (VG/PG split from targetPg, nicotine from the saved result).
+ * (VG/PG/nicotine from the saved result when available; otherwise the split
+ * is derived from targetPg and the mix formula).
  * `meta` (inventory per-flavor price metadata) is used as a fallback for
  * flavors without an entry in the price table.
- * Returns { cost, breakdown: [{ label, ml, cost }] }.
+ * Returns { cost, breakdown: [{ label, ml, cost }], baseMl: { vg, pg, nic } }.
  */
 export function estimateBatchCost(batch, prices, meta = {}) {
-  // Mix mode: total volume derives from the concentrate amount and its %
-  // (mixAmount / (flavorPct/100)); flavor mode uses the total volume directly.
+  const result = batch && batch.result
+  // When a saved result exists it already contains the combined, rounded
+  // volumes (flavorMl, pgNeeded, vgNeeded, nicMl) — prefer it over recomputing.
+  // nicMl covers every nicotine source: the added base (baseNicMl) plus any
+  // extra source bottles (sourceMl) that were poured into the mix.
   let vol = 0
-  if (batch && batch.ingredientMode === 'mix') {
-    const amt = parseFloat(batch.mixAmount) || 0
-    const pct = parseFloat(batch.flavorPct) || 0
-    if (amt > 0 && pct > 0) vol = amt / (pct / 100)
+  let flavorMl = 0
+  let pgMl = 0
+  let vgMl = 0
+  let nicMl = 0
+  if (result && parseFloat(result.actualTotal) > 0) {
+    vol = parseFloat(result.actualTotal) || 0
+    flavorMl = parseFloat(result.flavorMl) || 0
+    pgMl = parseFloat(result.pgNeeded) || 0
+    vgMl = parseFloat(result.vgNeeded) || 0
+    nicMl = parseFloat(result.nicMl) || 0
   } else {
-    vol = parseFloat(batch && batch.totalVolume) || 0
+    // Mix mode: total volume derives from the concentrate amount and its %
+    // (mixAmount / (flavorPct/100)); flavor mode uses the total volume directly.
+    if (batch && batch.ingredientMode === 'mix') {
+      const amt = parseFloat(batch.mixAmount) || 0
+      const pct = parseFloat(batch.flavorPct) || 0
+      if (amt > 0 && pct > 0) vol = amt / (pct / 100)
+    } else {
+      vol = parseFloat(batch && batch.totalVolume) || 0
+    }
+    if (vol <= 0) return { cost: 0, breakdown: [] }
+    flavorMl = vol * ((parseFloat(batch && batch.flavorPct) || 0) / 100)
+    const pgPct = parseFloat(batch && batch.targetPg) || 0
+    vgMl = vol * ((100 - pgPct) / 100)
+    pgMl = vol * (pgPct / 100)
+    nicMl = parseFloat(batch && batch.result && batch.result.baseNicMl) || 0
   }
-  if (vol <= 0) return { cost: 0, breakdown: [] }
   const breakdown = []
   let cost = 0
   const push = (label, ml, perMl) => {
@@ -73,16 +96,12 @@ export function estimateBatchCost(batch, prices, meta = {}) {
     }
   }
 
-  // Base liquids: VG/PG from the target mix ratio, nicotine from the result
-  const pgPct = parseFloat(batch.targetPg) || 0
-  const vgMl = vol * ((100 - pgPct) / 100)
-  const pgMl = vol * (pgPct / 100)
-  const nicMl = batch.result && parseFloat(batch.result.baseNicMl) || 0
+  // Base liquids: VG/PG/nicotine (from the saved result when available)
   const baseMl = [['vg', vgMl], ['pg', pgMl], ['nic', nicMl]]
   for (const [type, ml] of baseMl) {
     const prod = prices.find(p => p.type === type)
     push(type.toUpperCase(), ml, prod ? pricePerMl(prod) : null)
   }
 
-  return { cost, breakdown }
+  return { cost, breakdown, baseMl: { vg: vgMl, pg: pgMl, nic: nicMl } }
 }

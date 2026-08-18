@@ -1,22 +1,25 @@
-import { useId, useRef, useEffect, useState } from 'react'
+import { useId, useRef, useEffect } from 'react'
 import { View, Text, Animated, Easing } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Path, Rect, ClipPath, Defs, G, Ellipse, LinearGradient, Stop } from 'react-native-svg'
 import { fs, isWeb } from '../theme'
 import { useTheme } from '../ThemeContext'
 
+// Wrapping the SVG group in Animated lets the ripple drive its transform and
+// opacity through setNativeProps on every frame — no per-frame React state,
+// so the surrounding BottleSVG never re-renders during the wave.
+const AnimatedG = Animated.createAnimatedComponent(G)
+
 /**
  * Gentle surface ripple driven by react-native's Animated (web only; no-op on
- * mobile). Values are pushed into local state each frame so the SVG wave is
- * rendered with plain numeric transforms — only this tiny component re-renders.
+ * mobile). The traveling wave is applied as animated SVG props, so only the
+ * DOM attribute updates each frame.
  */
 function SurfaceRipple({ y }) {
   const ripple = useRef(new Animated.Value(0)).current
-  const [t, setT] = useState(0)
 
   useEffect(() => {
     if (!isWeb) return
-    const id = ripple.addListener(({ value }) => setT(value))
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(ripple, { toValue: 1, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
@@ -24,19 +27,13 @@ function SurfaceRipple({ y }) {
       ])
     )
     loop.start()
-    return () => {
-      loop.stop()
-      ripple.removeListener(id)
-    }
+    return () => loop.stop()
   }, [ripple])
 
   if (!isWeb) return null
 
   // Traveling wave: drifts sideways (half an 18-unit period), bobs gently up,
   // and pulses opacity 0.08 → 0.16 → 0.08.
-  const drift = 9 * t
-  const bob = t < 0.5 ? -2.2 * t : -2.2 * (1 - t)
-  const op = 0.08 + 0.08 * (1 - Math.abs(2 * t - 1))
   const base = y + 0.6
   const d =
     `M 15 ${base} Q 24 ${base - 1.2} 33 ${base}` +
@@ -45,10 +42,19 @@ function SurfaceRipple({ y }) {
     ` Q 78 ${base + 1.2} 87 ${base}` +
     ` Q 96 ${base - 1.2} 105 ${base}`
 
+  const transform = ripple.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['translate(0 0)', 'translate(4.5 -1.1)', 'translate(9 0)'],
+  })
+  const opacity = ripple.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.08, 0.16, 0.08],
+  })
+
   return (
-    <G transform={`translate(${drift} ${bob})`}>
-      <Path d={d} stroke="#ffffff" strokeWidth={0.8} fill="none" opacity={op} />
-    </G>
+    <AnimatedG transform={transform} opacity={opacity}>
+      <Path d={d} stroke="#ffffff" strokeWidth={0.8} fill="none" />
+    </AnimatedG>
   )
 }
 
