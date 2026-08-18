@@ -104,7 +104,7 @@ export default function PricesScreen({ navigation, route }) {
       return
     }
     setError('')
-    const next = [...prices, { id: `${Date.now()}`, type: 'flavor', name: finalName, amountMl: amt, price: pr }]
+    const next = [...prices, { id: `${Date.now()}`, type: 'flavor', name: finalName, amountMl: amt, price: pr, updatedAt: Date.now() }]
     setPrices(next)
     await savePrices(next)
     setLastSavedAt(Date.now())
@@ -115,14 +115,14 @@ export default function PricesScreen({ navigation, route }) {
   }
 
   const updateBase = (type, field, value) => {
-    const next = prices.map(p => p.type === type ? { ...p, [field]: value } : p)
+    const next = prices.map(p => p.type === type ? { ...p, [field]: value, updatedAt: Date.now() } : p)
     setPrices(next)
     savePrices(next)
     flashSaved(type)
   }
 
   const updateFlavor = (id, field, value) => {
-    const next = prices.map(p => p.id === id ? { ...p, [field]: value } : p)
+    const next = prices.map(p => p.id === id ? { ...p, [field]: value, updatedAt: Date.now() } : p)
     setPrices(next)
     savePrices(next)
     flashSaved(id)
@@ -150,6 +150,12 @@ export default function PricesScreen({ navigation, route }) {
   const flavors = prices.filter(p => p.type === 'flavor')
   const totalInvested = prices.reduce((s, p) => s + (parseFloat(p.price) || 0), 0)
   const baseLabels = { vg: t('prices.vg'), pg: t('prices.pg'), nic: t('prices.nic') }
+
+  const formatDate = (ts) => {
+    const d = new Date(ts)
+    const pad = (n) => (n < 10 ? '0' : '') + n
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
+  }
 
   const heroBlock = (
     <ScreenHero icon="pricetag" title={t('prices.title')} subtitle={t('prices.subtitle')} desktop={desktop} />
@@ -204,6 +210,9 @@ export default function PricesScreen({ navigation, route }) {
           {savedKey === p.id && (
             <Text style={styles.savedBadge}>✓ {t('prices.saved')}</Text>
           )}
+          {p.updatedAt ? (
+            <Text style={styles.rowUpdated}>{t('prices.rowUpdated', { date: formatDate(p.updatedAt) })}</Text>
+          ) : null}
         </View>
       </View>
     )
@@ -306,6 +315,9 @@ export default function PricesScreen({ navigation, route }) {
                   <Text style={styles.savedBadge}>✓ {t('prices.saved')}</Text>
                 )}
               </View>
+              {b.updatedAt ? (
+                <Text style={styles.rowUpdated}>{t('prices.rowUpdated', { date: formatDate(b.updatedAt) })}</Text>
+              ) : null}
             </View>
             <View style={styles.baseInputs}>
               <TextInput
@@ -536,6 +548,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     overflow: 'hidden',
   },
   baseInputs: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowUpdated: { fontSize: fs(11, scale), color: colors.textDim, marginTop: 3 },
   baseInput: {
     height: 40,
     borderRadius: 10,
