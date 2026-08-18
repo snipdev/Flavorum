@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { themeVariants } from './theme'
+import { auditAllThemes, AA_NORMAL, AA_LARGE } from './utils/contrast'
 
 const THEME_KEY = 'flavorum_theme'
 const TEXT_SCALE_KEY = 'flavorum_textScale'
@@ -18,6 +19,26 @@ export function ThemeProvider({ children }) {
       if (saved && themeVariants[saved]) setKey(saved)
       setReady(true)
     }).catch(() => setReady(true))
+  }, [])
+
+  // Dev-only automatic contrast audit: on startup, verify every theme variant
+  // and warn about pairs that fall below WCAG AA. Lets light-theme regressions
+  // surface in the console without clicking through all ten themes.
+  useEffect(() => {
+    if (typeof __DEV__ === 'undefined' || !__DEV__) return
+    if (typeof console === 'undefined' || !console.warn) return
+    for (const { key, name, pairs } of auditAllThemes(themeVariants)) {
+      const bad = pairs.filter(p => p.ratio < AA_NORMAL)
+      if (bad.length === 0) continue
+      const hard = bad.filter(p => p.ratio < AA_LARGE)
+      const lines = bad.map(p =>
+        `  ${p.label}: ${p.ratio.toFixed(2)} (${p.fg} on ${p.bg})${p.ratio < AA_LARGE ? ' ⚠' : ''}`
+      )
+      console.warn(
+        `[contrast] ${name} (${key}): ${bad.length} pair(s) below AA ${AA_NORMAL}` +
+        `${hard.length ? ` — ${hard.length} below AA ${AA_LARGE} ⚠` : ''}\n${lines.join('\n')}`
+      )
+    }
   }, [])
 
   useEffect(() => {

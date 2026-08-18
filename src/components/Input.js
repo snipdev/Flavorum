@@ -51,6 +51,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   icon: { marginLeft: spacing.md },
   input: {
     flex: 1,
+    minWidth: 0,
     minHeight: 48,
     height: 48,
     paddingHorizontal: spacing.md,

@@ -1,4 +1,5 @@
-import { Platform } from 'react-native'
+import { useEffect, useMemo, useRef } from 'react'
+import { Animated, Platform, useWindowDimensions } from 'react-native'
 
 export const spacing = {
   xs: 4,
@@ -10,7 +11,84 @@ export const spacing = {
 }
 
 export const webMaxWidth = 580
+// Above this content width the screens switch to their two-column desktop
+// layouts (form left, sticky result right). Below it — and on mobile — the
+// single phone column is always preserved. The threshold is judged on the
+// *content* width (viewport minus the sidebar) so two columns unlock as soon
+// as there is genuinely room for them — which also keeps the single column
+// from stretching past ~760px.
+export const wideWebBreakpoint = 760
+// Max width of the wide web content wrapper (the two-column layouts live here).
+export const wideWebMaxWidth = 1240
+// At/above this viewport width the web UI swaps the mobile-style bottom tab
+// bar for a desktop left sidebar. Below it (and on mobile) the bottom bar is
+// always preserved.
+export const sidebarWebBreakpoint = 820
+export const sidebarWebWidth = 200
 export const isWeb = Platform.OS === 'web'
+
+export function useWideWeb() {
+  const { width } = useWindowDimensions()
+  if (!isWeb) return false
+  // The left sidebar eats 200px, so the two-column layouts must judge their
+  // room by the *content* width, not the viewport. At viewports where the
+  // sidebar is present the content is narrower — columns only unlock once it
+  // is actually wide enough (viewport >= 820 + 200).
+  const contentWidth = width >= sidebarWebBreakpoint ? width - sidebarWebWidth : width
+  return contentWidth >= wideWebBreakpoint
+}
+
+export function useSidebarWeb() {
+  const { width } = useWindowDimensions()
+  return isWeb && width >= sidebarWebBreakpoint
+}
+
+// Fades a shadow in/out as `active` flips — used by the sticky header and the
+// bottom dock so the shadow appears smoothly on scroll instead of snapping.
+// Returns an Animated opacity value to apply to a dedicated shadow layer:
+// animating the layer's *opacity* works on every platform (web's Animated
+// cannot emit an interpolated shadow* style into the DOM, so the layer keeps
+// a static box-shadow and only its opacity animates).
+export function useShadowFade(active, duration = 200) {
+  const anim = useRef(new Animated.Value(active ? 1 : 0)).current
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: active ? 1 : 0,
+      duration,
+      useNativeDriver: false,
+    }).start()
+  }, [active, anim, duration])
+  return useMemo(() => anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }), [anim])
+}
+
+// Soft shadow applied under the sticky header once the content has scrolled
+export const stickyHeaderShadow = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 3 },
+  shadowOpacity: 0.22,
+  shadowRadius: 6,
+  elevation: 3,
+}
+
+// Mirror of stickyHeaderShadow for the bottom dock: the shadow falls upward
+// (shadowOffset height negative) so it appears above the dock, under the
+// scrolled content — symmetric with the sticky header's bottom shadow.
+export const dockShadow = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: -3 },
+  shadowOpacity: 0.22,
+  shadowRadius: 6,
+  elevation: 3,
+}
+
+// Base layout of the sticky header — shared by every screen
+// (StickyHeader component merges this with stickyHeaderShadow on scroll)
+export const stickyHeaderStyle = {
+  width: '100%',
+  alignSelf: 'center',
+  paddingHorizontal: 14,
+  paddingTop: spacing.md,
+}
 
 export const fs = (n, scale = 1) => Math.round(n * scale)
 
@@ -175,6 +253,156 @@ export const themeVariants = {
     blob2: '#4ADE80',
     blob3: '#60A5FA',
     tabBg: 'rgba(5,5,5,0.94)',
+  },
+  emberLight: {
+    key: 'emberLight',
+    name: 'Ember Light',
+    tag: 'Açık Kehribar',
+    bg: '#FAF5EB',
+    bgGradient: '#F3EBDD',
+    card: 'rgba(255,255,255,0.85)',
+    cardBorder: 'rgba(180,83,9,0.22)',
+    border: 'rgba(0,0,0,0.12)',
+    inputBg: 'rgba(0,0,0,0.05)',
+    text: '#292524',
+    textMuted: '#57534E',
+    textDim: '#8B8578',
+    primary: '#B45309',
+    primaryLight: '#D97706',
+    primaryDark: '#92400E',
+    accent: '#F59E0B',
+    success: '#059669',
+    danger: '#DC2626',
+    warning: '#D97706',
+    vg: '#0891B2',
+    glass: 'rgba(255,255,255,0.65)',
+    glassBorder: 'rgba(0,0,0,0.10)',
+    glassBorderStrong: 'rgba(217,119,6,0.35)',
+    modalBg: '#FFFFFF',
+    blob1: '#FCD34D',
+    blob2: '#C4B5FD',
+    blob3: '#7DD3FC',
+    tabBg: 'rgba(255,255,255,0.92)',
+  },
+  nebulaLight: {
+    key: 'nebulaLight',
+    name: 'Nebula Light',
+    tag: 'Açık Mor Cam',
+    bg: '#F6F3FC',
+    bgGradient: '#EDE8F8',
+    card: 'rgba(255,255,255,0.85)',
+    cardBorder: 'rgba(109,40,217,0.22)',
+    border: 'rgba(0,0,0,0.12)',
+    inputBg: 'rgba(0,0,0,0.05)',
+    text: '#1E1B4B',
+    textMuted: '#4C4690',
+    textDim: '#7C76AD',
+    primary: '#7C3AED',
+    primaryLight: '#6D28D9',
+    primaryDark: '#5B21B6',
+    accent: '#A855F7',
+    success: '#059669',
+    danger: '#DC2626',
+    warning: '#D97706',
+    vg: '#0891B2',
+    glass: 'rgba(255,255,255,0.65)',
+    glassBorder: 'rgba(0,0,0,0.10)',
+    glassBorderStrong: 'rgba(124,58,237,0.35)',
+    modalBg: '#FFFFFF',
+    blob1: '#C4B5FD',
+    blob2: '#F9A8D4',
+    blob3: '#67E8F9',
+    tabBg: 'rgba(255,255,255,0.92)',
+  },
+  glacierLight: {
+    key: 'glacierLight',
+    name: 'Glacier Light',
+    tag: 'Açık Cam Buzu',
+    bg: '#F0F9FC',
+    bgGradient: '#E4F2F8',
+    card: 'rgba(255,255,255,0.85)',
+    cardBorder: 'rgba(8,145,178,0.22)',
+    border: 'rgba(0,0,0,0.12)',
+    inputBg: 'rgba(0,0,0,0.05)',
+    text: '#164E63',
+    textMuted: '#4B6B7B',
+    textDim: '#7B97A6',
+    primary: '#0891B2',
+    primaryLight: '#0E7490',
+    primaryDark: '#155E75',
+    accent: '#06B6D4',
+    success: '#059669',
+    danger: '#DC2626',
+    warning: '#D97706',
+    vg: '#DB2777',
+    glass: 'rgba(255,255,255,0.65)',
+    glassBorder: 'rgba(0,0,0,0.10)',
+    glassBorderStrong: 'rgba(8,145,178,0.35)',
+    modalBg: '#FFFFFF',
+    blob1: '#67E8F9',
+    blob2: '#C4B5FD',
+    blob3: '#6EE7B7',
+    tabBg: 'rgba(255,255,255,0.92)',
+  },
+  obsidianLight: {
+    key: 'obsidianLight',
+    name: 'Obsidian Light',
+    tag: 'Açık OLED',
+    bg: '#F4F7F5',
+    bgGradient: '#E9F0EC',
+    card: 'rgba(255,255,255,0.85)',
+    cardBorder: 'rgba(4,120,87,0.22)',
+    border: 'rgba(0,0,0,0.12)',
+    inputBg: 'rgba(0,0,0,0.05)',
+    text: '#134E4A',
+    textMuted: '#4F6360',
+    textDim: '#80908D',
+    primary: '#059669',
+    primaryLight: '#10B981',
+    primaryDark: '#047857',
+    accent: '#34D399',
+    success: '#059669',
+    danger: '#DC2626',
+    warning: '#D97706',
+    vg: '#0891B2',
+    glass: 'rgba(255,255,255,0.65)',
+    glassBorder: 'rgba(0,0,0,0.10)',
+    glassBorderStrong: 'rgba(5,150,105,0.35)',
+    modalBg: '#FFFFFF',
+    blob1: '#6EE7B7',
+    blob2: '#93C5FD',
+    blob3: '#C4B5FD',
+    tabBg: 'rgba(255,255,255,0.92)',
+  },
+  contrastLight: {
+    key: 'contrastLight',
+    name: 'Contrast Light',
+    tag: 'Açık Yüksek Kontrast',
+    bg: '#FDFDF8',
+    bgGradient: '#F7F7EE',
+    card: 'rgba(255,255,255,0.9)',
+    cardBorder: 'rgba(161,98,7,0.25)',
+    border: 'rgba(0,0,0,0.18)',
+    inputBg: 'rgba(0,0,0,0.06)',
+    text: '#1C1917',
+    textMuted: '#57534E',
+    textDim: '#87837C',
+    primary: '#A16207',
+    primaryLight: '#CA8A04',
+    primaryDark: '#854D0E',
+    accent: '#FACC15',
+    success: '#15803D',
+    danger: '#B91C1C',
+    warning: '#B45309',
+    vg: '#2563EB',
+    glass: 'rgba(255,255,255,0.75)',
+    glassBorder: 'rgba(0,0,0,0.14)',
+    glassBorderStrong: 'rgba(202,138,4,0.45)',
+    modalBg: '#FFFFFF',
+    blob1: '#FDE047',
+    blob2: '#86EFAC',
+    blob3: '#93C5FD',
+    tabBg: 'rgba(255,255,255,0.95)',
   },
 }
 

@@ -3,8 +3,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { fs, spacing } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
+import BottleSVG from './BottleSVG'
 
-export default function ResultBox({ items, title, segments = [] }) {
+export default function ResultBox({ items, title, segments = [], totalMl, flat }) {
   const { t } = useI18n()
   const { theme, textScale } = useTheme()
   const colors = theme
@@ -17,7 +18,7 @@ export default function ResultBox({ items, title, segments = [] }) {
   const badge = items.find(i => i.badge)
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, flat && styles.wrapperFlat]}>
       <View style={styles.header}>
         <Text style={styles.title}>{header}</Text>
         <View style={styles.headerLine} />
@@ -32,19 +33,17 @@ export default function ResultBox({ items, title, segments = [] }) {
 
       {segments.length > 0 && (
         <View style={styles.composition}>
-          <View style={styles.bar}>
-            {segments.map((seg, i) => (
-              <View key={i} style={[styles.segment, { flex: seg.pct, backgroundColor: seg.color }]} />
-            ))}
-          </View>
-          <View style={styles.legend}>
-            {segments.map((seg, i) => (
-              <View key={i} style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: seg.color }]} />
-                <Text style={styles.legendLabel}>{seg.label}</Text>
-                <Text style={styles.legendPct}>%{seg.pct.toFixed(1)}</Text>
-              </View>
-            ))}
+          <View style={styles.bottleRow}>
+            <BottleSVG segments={segments} totalMl={totalMl} />
+            <View style={styles.legend}>
+              {segments.map((seg, i) => (
+                <View key={i} style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: seg.color }]} />
+                  <Text style={styles.legendLabel}>{seg.label}</Text>
+                  <Text style={styles.legendPct}>%{seg.pct.toFixed(1)}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         </View>
       )}
@@ -75,6 +74,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     padding: spacing.lg,
     marginTop: spacing.lg,
   },
+  // Wide web only: the right column already offsets for the hero, so the
+  // card must not add its own top margin (single-column keeps it).
+  wrapperFlat: { marginTop: 0 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: spacing.md },
   title: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   headerLine: { flex: 1, height: 1, backgroundColor: colors.cardBorder },
@@ -92,19 +94,15 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   badgeDot: { width: 8, height: 8, borderRadius: 4 },
   badgeText: { fontSize: fs(15, scale), fontWeight: '700' },
   composition: { marginBottom: spacing.md },
-  bar: {
+  bottleRow: {
     flexDirection: 'row',
-    height: 16,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: colors.cardBorder,
+    alignItems: 'center',
+    gap: spacing.lg,
+    justifyContent: 'center',
   },
-  segment: { height: '100%' },
   legend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 10,
+    flex: 1,
+    gap: 10,
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },

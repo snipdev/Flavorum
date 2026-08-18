@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useTheme } from '../ThemeContext'
 import { fs } from '../theme'
 import { useI18n } from '../i18n'
+import { hapticLight } from '../utils/haptics'
 
 export default function LangToggle() {
   const { lang, switchLang, t } = useI18n()
@@ -12,8 +13,9 @@ export default function LangToggle() {
     <View style={styles.seg}>
       <TouchableOpacity
         style={[styles.btn, lang === 'en' && styles.active]}
-        onPress={() => switchLang('en')}
+        onPress={() => { hapticLight(); switchLang('en') }}
         activeOpacity={0.7}
+        hitSlop={{ top: 5, bottom: 5, left: 3, right: 3 }}
         accessibilityRole="button"
         accessibilityLabel={t('common.langEn')}
         accessibilityState={{ selected: lang === 'en' }}
@@ -22,8 +24,9 @@ export default function LangToggle() {
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.btn, lang === 'tr' && styles.active]}
-        onPress={() => switchLang('tr')}
+        onPress={() => { hapticLight(); switchLang('tr') }}
         activeOpacity={0.7}
+        hitSlop={{ top: 5, bottom: 5, left: 3, right: 3 }}
         accessibilityRole="button"
         accessibilityLabel={t('common.langTr')}
         accessibilityState={{ selected: lang === 'tr' }}
@@ -44,15 +47,15 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     overflow: 'hidden',
   },
   btn: {
-    minWidth: 44,
-    minHeight: 44,
-    paddingHorizontal: 10,
+    minWidth: 36,
+    minHeight: 36,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   active: {
     backgroundColor: colors.primary + '33',
   },
-  text: { fontSize: fs(14, scale), fontWeight: '700', color: colors.textDim, letterSpacing: 0.5 },
+  text: { fontSize: fs(13, scale), fontWeight: '700', color: colors.textDim, letterSpacing: 0.5 },
   textActive: { color: colors.primaryLight },
 })

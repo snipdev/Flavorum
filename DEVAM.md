@@ -5,7 +5,7 @@ Son güncelleme: 2026-08-08
 ## Proje
 - Konum: `C:\TimeToCode\Flavorum` (Expo / React Native, web + mobil)
 - Web dev server: `http://localhost:8081` (hot reload, log: `C:\TimeToCode\Flavorum\web-server.log`)
-- Git repo değil → değişiklikler için yedek yok, dikkatli çalış.
+- Git repo aktif — değişiklikler commit ile izleniyor. Çalışmaya başlamadan önce `git status` kontrol et.
 - Konuşma dili: Türkçe.
 
 ## Tamamlananlar

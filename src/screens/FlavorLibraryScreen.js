@@ -1,15 +1,20 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, Platform, Modal, ScrollView, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing } from '../theme'
+import { fs, spacing, useWideWeb, useSidebarWeb } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { loadRecipes, loadBatches, saveRecipes, saveBatches, loadCustomFlavors, saveCustomFlavors, loadInventory, saveInventory, loadInventoryMeta, saveInventoryMeta, loadFlavorRecs, saveFlavorRecs, recomputeFlavorRecs, getRecValue, formatRecValues, findRec } from '../utils/recipes'
+import { useUndo } from '../utils/useUndo'
+import UndoToast from '../components/UndoToast'
+import { useEscToClose } from '../utils/useEscToClose'
 import { ELR_FLAVORS } from '../data/flavors'
-import { parseFlavorName } from '../utils/flavorUtils'
+import { parseFlavorName, normalizeBrand } from '../utils/flavorUtils'
 import { useI18n } from '../i18n'
 import LangToggle from '../components/LangToggle'
+import ThemeToggle from '../components/ThemeToggle'
+import StickyHeader from '../components/StickyHeader'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 function fuzzyScore(text, query) {
@@ -41,7 +46,13 @@ export default function FlavorLibraryScreen({ navigation }) {
   const { t } = useI18n()
   const { theme: colors, textScale } = useTheme()
   const styles = createStyles(colors, textScale)
+  // Wide web (viewport >= 820px): flavor rows render as a two-column grid.
+  const wide = useWideWeb()
+  const desktop = useSidebarWeb()
   const [loading, setLoading] = useState(true)
+  const headerRef = useRef(null)
+  const [brandFilter, setBrandFilter] = useState(null)
+  const onHeaderScroll = useCallback((e) => headerRef.current?.handleScroll(e), [])
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
@@ -181,12 +192,20 @@ export default function FlavorLibraryScreen({ navigation }) {
   const [detailFlavor, setDetailFlavor] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
+  useEscToClose(detailFlavor !== null, () => setDetailFlavor(null))
+  useEscToClose(addOpen, () => setAddOpen(false))
+  useEscToClose(stockModalFlavor !== null, () => setStockModalFlavor(null))
   const [addName, setAddName] = useState('')
   const [addError, setAddError] = useState('')
+
+  const { undo, showUndo, dismissUndo, applyUndo } = useUndo()
 
   const handleDeleteFlavor = async () => {
     if (!deleteTarget) return
     const key = deleteTarget.trim()
+    const prevRecipes = recipes
+    const prevBatches = batches
+    const prevCustom = customFlavors
     const stripFlavor = f => !(f && f.name && f.name.trim() === key)
     const updatedRecipes = recipes
       .map(r => ({ ...r, flavors: Array.isArray(r.flavors) ? r.flavors.filter(stripFlavor) : r.flavors }))
@@ -206,6 +225,15 @@ export default function FlavorLibraryScreen({ navigation }) {
     const nextRecs = await recomputeFlavorRecs(updatedRecipes, flavorRecs)
     setFlavorRecs(nextRecs)
     setDeleteTarget(null)
+    showUndo(t('flavors.undoDeleteMsg'), () => {
+      setRecipes(prevRecipes)
+      setBatches(prevBatches)
+      setCustomFlavors(prevCustom)
+      saveRecipes(prevRecipes)
+      saveBatches(prevBatches)
+      saveCustomFlavors(prevCustom)
+      recomputeFlavorRecs(prevRecipes, flavorRecs).then(setFlavorRecs)
+    })
   }
 
   const handleAddFlavor = async () => {
@@ -228,20 +256,34 @@ export default function FlavorLibraryScreen({ navigation }) {
     setAddError('')
   }
 
+  // Most common brands in the ELR library, for the filter chips — variants of
+  // the same manufacturer (TFA/TPA, Cap/CAP, Inawera/INW, …) are collapsed.
+  const topBrands = useMemo(() => {
+    const counts = {}
+    for (const n of ELR_FLAVORS) {
+      const b = normalizeBrand(parseFlavorName(n).brand)
+      if (b) counts[b] = (counts[b] || 0) + 1
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([b]) => b)
+  }, [])
+
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
     let names = []
     for (const n of ELR_FLAVORS) {
       const rc = stats.rCount.get(n) || 0
       const bc = stats.bCount.get(n) || 0
-      names.push({ name: n, k: n.toLowerCase(), local: false, rc, bc })
+      names.push({ name: n, k: n.toLowerCase(), local: false, rc, bc, brand: normalizeBrand(parseFlavorName(n).brand) })
     }
     for (const n of localFlavors) {
-      names.push({ name: n, k: n.toLowerCase(), local: true, rc: stats.rCount.get(n) || 0, bc: stats.bCount.get(n) || 0 })
+      names.push({ name: n, k: n.toLowerCase(), local: true, rc: stats.rCount.get(n) || 0, bc: stats.bCount.get(n) || 0, brand: normalizeBrand(parseFlavorName(n).brand) })
     }
 
     if (stockFilter === 'stock') {
       names = names.filter(x => inventorySet.has(x.k))
+    }
+    if (brandFilter) {
+      names = names.filter(x => x.brand === brandFilter)
     }
 
     const cmp = (a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : 0
@@ -259,10 +301,10 @@ export default function FlavorLibraryScreen({ navigation }) {
     }
     names.sort(sorter)
     return names
-  }, [debouncedSearch, stats, localFlavors, sortBy, stockFilter, inventorySet])
+  }, [debouncedSearch, stats, localFlavors, sortBy, stockFilter, inventorySet, brandFilter])
 
   const [visibleCount, setVisibleCount] = useState(200)
-  useEffect(() => { setVisibleCount(200) }, [debouncedSearch, sortBy, stockFilter])
+  useEffect(() => { setVisibleCount(200) }, [debouncedSearch, sortBy, stockFilter, brandFilter])
   const displayed = visibleCount >= filtered.length ? filtered : filtered.slice(0, visibleCount)
 
   const detail = useMemo(() => {
@@ -277,6 +319,26 @@ export default function FlavorLibraryScreen({ navigation }) {
     }
   }, [detailFlavor, recipes, batches])
 
+  const heroBlock = (
+    <View style={[styles.hero, desktop && styles.heroDesktop]}>
+      {!desktop && (
+        <View style={styles.iconCircle}>
+          <Ionicons name="leaf" size={20} color={colors.primaryLight} />
+        </View>
+      )}
+      <View style={styles.heroText}>
+        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('flavors.title')}</Text>
+        <Text style={styles.subtitle} numberOfLines={2}>{t('flavors.subtitle', { total: total.toLocaleString() })}</Text>
+      </View>
+      {!desktop && (
+        <View style={styles.heroRight}>
+          <ThemeToggle />
+          <LangToggle />
+        </View>
+      )}
+    </View>
+  )
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {loading ? (
@@ -285,14 +347,21 @@ export default function FlavorLibraryScreen({ navigation }) {
           <Text style={styles.loadingText}>{t('flavors.loading')}</Text>
         </View>
       ) : (
+      <>
+      <StickyHeader ref={headerRef}>{heroBlock}</StickyHeader>
       <FlatList
+        key={wide ? 'flavors-grid' : 'flavors-list'}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         data={displayed}
+        numColumns={wide ? 2 : 1}
+        columnWrapperStyle={wide ? styles.gridRow : undefined}
         keyExtractor={(item, i) => `${item.local ? 'L' : 'E'}-${item.name}-${i}`}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onScroll={onHeaderScroll}
+        scrollEventThrottle={16}
         onEndReachedThreshold={0.4}
         onEndReached={() => setVisibleCount(c => (c >= filtered.length ? c : Math.min(c + 500, filtered.length)))}
         initialNumToRender={30}
@@ -301,18 +370,9 @@ export default function FlavorLibraryScreen({ navigation }) {
         removeClippedSubviews={Platform.OS !== 'web'}
         ListHeaderComponent={
           <>
-            <View style={styles.hero}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="leaf" size={24} color={colors.primaryLight} />
-              </View>
-              <View style={styles.heroText}>
-                <Text style={styles.title}>{t('flavors.title')}</Text>
-                <Text style={styles.subtitle} numberOfLines={2}>{t('flavors.subtitle', { total: total.toLocaleString() })}</Text>
-              </View>
-              <View style={styles.heroRight}>
-                <LangToggle />
-              </View>
-            </View>
+
+
+
 
             <View style={styles.card}>
               <View style={styles.searchBox}>
@@ -353,9 +413,36 @@ export default function FlavorLibraryScreen({ navigation }) {
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Brand filter chips */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.brandChipsWrap}
+                contentContainerStyle={styles.brandChips}
+                keyboardShouldPersistTaps="handled"
+              >
+                <TouchableOpacity
+                  style={[styles.brandChip, brandFilter === null && styles.brandChipActive]}
+                  onPress={() => setBrandFilter(null)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.brandChipText, brandFilter === null && styles.brandChipTextActive]}>{t('flavors.allBrands')}</Text>
+                </TouchableOpacity>
+                {topBrands.map(b => (
+                  <TouchableOpacity
+                    key={b}
+                    style={[styles.brandChip, brandFilter === b && styles.brandChipActive]}
+                    onPress={() => setBrandFilter(brandFilter === b ? null : b)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.brandChipText, brandFilter === b && styles.brandChipTextActive]}>{b}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
 
-            {(search.trim() !== '' || stockFilter === 'stock') && (
+            {(search.trim() !== '' || stockFilter === 'stock' || brandFilter) && (
               <Text style={styles.resultCount}>
                 {t('flavors.resultCount', { shown: filtered.length.toLocaleString(), total: total.toLocaleString() })}
               </Text>
@@ -394,9 +481,13 @@ export default function FlavorLibraryScreen({ navigation }) {
           const inStock = inventorySet.has(f.k)
           const metaInfo = inventoryMeta[f.name] || {}
           const recInfo = findRec(flavorRecs, f.name)
+          // Prominent badge value: the user's most-used percentage (mode), falling
+          // back to the full value set when there is no single dominant value.
+          const recValue = getRecValue(recInfo)
+          const recLabel = recValue != null ? `${recValue}%` : formatRecValues(recInfo)
           const { name, brand } = parseFlavorName(f.name)
           return (
-            <View style={[styles.row, index < displayed.length - 1 && styles.rowBorder]}>
+            <View style={[styles.row, wide ? styles.rowWide : (index < displayed.length - 1 && styles.rowBorder)]}>
               <TouchableOpacity
                 style={styles.stockToggleBtn}
                 onPress={() => openStockModal(f.name)}
@@ -413,16 +504,19 @@ export default function FlavorLibraryScreen({ navigation }) {
               </TouchableOpacity>
 
               <View style={styles.rowTextWrap}>
-                <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
+                <View style={styles.rowTitleLine}>
+                  <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
+                  {recInfo && (
+                    <View style={styles.recBadge}>
+                      <Ionicons name="flame" size={11} color="#fff" importantForAccessibility="no" />
+                      <Text style={styles.recBadgeText}>{recLabel}</Text>
+                    </View>
+                  )}
+                </View>
                 <View style={styles.rowMetaLine}>
                   {(brand) && (
                     <View style={styles.brandPill}>
                       <Text style={styles.brandPillText}>{brand}</Text>
-                    </View>
-                  )}
-                  {recInfo && (
-                    <View style={styles.recPill}>
-                      <Text style={styles.recPillText}>{t('flavors.recBadge', { val: formatRecValues(recInfo) })}</Text>
                     </View>
                   )}
                   {inStock && (metaInfo.bottleMl > 0 || metaInfo.price > 0) && (
@@ -459,6 +553,7 @@ export default function FlavorLibraryScreen({ navigation }) {
           )
         }}
       />
+      </>
       )}
 
       <Modal visible={detail !== null} transparent animationType="fade" onRequestClose={() => setDetailFlavor(null)}>
@@ -574,6 +669,10 @@ export default function FlavorLibraryScreen({ navigation }) {
         onCancel={() => setDeleteTarget(null)}
       />
 
+      {undo && (
+        <UndoToast message={undo.message} onUndo={applyUndo} onDismiss={dismissUndo} />
+      )}
+
       {/* Stock & Price Entry Modal */}
       <Modal visible={stockModalFlavor !== null} transparent animationType="fade" onRequestClose={() => setStockModalFlavor(null)}>
         <View style={styles.modalOverlay}>
@@ -650,19 +749,22 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   loadMoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
   loadMoreText: { fontSize: fs(13, scale), color: colors.textMuted },
   content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 100 },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
+  // Sticky header above the list (narrow & wide — matches Build tab)
+  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
+  heroDesktop: { marginBottom: spacing.sm },
   heroText: { flex: 1, flexShrink: 1 },
-  heroRight: { marginLeft: 'auto', flexShrink: 0 },
+  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     backgroundColor: colors.primary + '1F',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: fs(29, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: fs(16, scale), color: colors.textMuted, marginTop: 1 },
+  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
+  titleDesktop: { fontSize: fs(18, scale) },
+  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -683,6 +785,22 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     height: 44,
   },
   searchInput: { flex: 1, color: colors.text, fontSize: fs(15, scale), height: 44, paddingVertical: 0 },
+  brandChipsWrap: { marginTop: spacing.sm },
+  brandChips: { gap: spacing.sm, paddingRight: spacing.md },
+  brandChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.inputBg,
+  },
+  brandChipActive: {
+    borderColor: colors.primaryLight,
+    backgroundColor: colors.primary + '22',
+  },
+  brandChipText: { fontSize: fs(12, scale), fontWeight: '600', color: colors.textMuted },
+  brandChipTextActive: { color: colors.primaryLight },
   filterTabs: { flexDirection: 'row', gap: 8, marginTop: 10 },
   filterTab: {
     flex: 1,
@@ -753,7 +871,21 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   sortBadgeTextActive: { color: '#fff' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.primary + '14' },
+  // Wide web: two-column grid row. flex:1 is required because react-native-web
+  // defaults to flex-shrink:0, which would otherwise overflow the row.
+  gridRow: { gap: spacing.md },
+  rowWide: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    alignSelf: 'stretch',
+  },
   rowTextWrap: { flex: 1, flexDirection: 'column', gap: 5, minWidth: 0 },
+  rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 },
   rowMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 },
   rowName: { flexShrink: 1, fontSize: fs(15, scale), color: colors.text, fontWeight: '500', minWidth: 0 },
   rowLocal: {
@@ -854,15 +986,17 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 4,
   },
   stockMetaPillText: { fontSize: fs(12, scale), fontWeight: '700', color: colors.success },
-  recPill: {
-    backgroundColor: colors.primary + '1F',
-    borderWidth: 1,
-    borderColor: colors.primary + '44',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
+  recBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.primary,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    flexShrink: 1,
   },
-  recPillText: { fontSize: fs(12, scale), fontWeight: '700', color: colors.primaryLight },
+  recBadgeText: { fontSize: fs(12, scale), fontWeight: '800', color: '#fff' },
   stockFlavorName: { fontSize: fs(15, scale), fontWeight: '700', color: colors.primaryLight, marginBottom: spacing.sm },
   stockLabel: { fontSize: fs(13, scale), fontWeight: '600', color: colors.textMuted, marginBottom: 6, marginTop: spacing.xs },
   stockInput: {

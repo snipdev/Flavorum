@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Keyboard, Platform } from 'react-native'
+import { Animated, View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Keyboard, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
@@ -8,11 +8,14 @@ import PgVgSlider from '../components/PgVgSlider'
 import ResultBox from '../components/ResultBox'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import LangToggle from '../components/LangToggle'
-import ThemePickerModal from '../components/ThemePickerModal'
-import { fs, spacing } from '../theme'
+import ThemeToggle from '../components/ThemeToggle'
+import StickyHeader from '../components/StickyHeader'
+import { fs, spacing, useWideWeb, useSidebarWeb, dockShadow, useShadowFade } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { calculateNicotine } from '../utils/calculations'
 import { loadRecipes, saveRecipes, loadBatches, saveBatches, newBatchId, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
+import { hapticLight } from '../utils/haptics'
+import { useEscToClose } from '../utils/useEscToClose'
 import { useI18n } from '../i18n'
 
 const TARGET_VOLUMES = [30, 60, 100, 120, 200, 250]
@@ -96,6 +99,20 @@ export default function NicotineScreen({ navigation, route }) {
   const { t } = useI18n()
   const { theme: colors, textScale } = useTheme()
   const styles = createStyles(colors, textScale)
+  // Wide web (viewport >= 920px) unlocks the two-column desktop layout;
+  // everything below that — and all of mobile — keeps the single column.
+  const wide = useWideWeb()
+  const desktop = useSidebarWeb()
+  const [showTop, setShowTop] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const dockShadowOpacity = useShadowFade(scrolled)
+  const headerRef = useRef(null)
+  const handleScroll = useCallback((e) => {
+    const y = e.nativeEvent.contentOffset.y
+    headerRef.current?.handleScroll(e)
+    setScrolled(y > 4)
+    setShowTop(y > 300)
+  }, [])
   const [nicStrength, setNicStrength] = useState('100')
   const [nicBaseMode, setNicBaseMode] = useState('pg')
   const [nicCustomPg, setNicCustomPg] = useState('50')
@@ -109,9 +126,9 @@ export default function NicotineScreen({ navigation, route }) {
   const [targetPg, setTargetPg] = useState('30')
   const [totalVolume, setTotalVolume] = useState('100')
   const [mixAmount, setMixAmount] = useState('10')
+  const [mixName, setMixName] = useState('')
   const [flavorPct, setFlavorPct] = useState('15')
   const [ingredientMode, setIngredientMode] = useState('flavor')
-  const [themeModalVisible, setThemeModalVisible] = useState(false)
   const mixTotal = useMemo(() => {
     if (ingredientMode !== 'mix') return null
     const vol = parseFloat(mixAmount) || 0
@@ -131,6 +148,9 @@ export default function NicotineScreen({ navigation, route }) {
   const [loadBatchModalVisible, setLoadBatchModalVisible] = useState(false)
   const [loadSearch, setLoadSearch] = useState('')
   const [batchName, setBatchName] = useState('')
+  useEscToClose(saveModalVisible, () => setSaveModalVisible(false))
+  useEscToClose(loadModalVisible, () => setLoadModalVisible(false))
+  useEscToClose(loadBatchModalVisible, () => setLoadBatchModalVisible(false))
   const amountRefs = useRef({})
   const scrollRef = useRef(null)
   const resultWrapRef = useRef(null)
@@ -193,13 +213,32 @@ export default function NicotineScreen({ navigation, route }) {
     const nic = parseFloat(nicStrength) || 0
     const target = parseFloat(targetStrength) || 0
     if (!(nic > 0) || !(target > 0)) return null
-    const vol = ingredientMode === 'mix'
-      ? ((parseFloat(mixAmount) || 0) / ((parseFloat(flavorPct) || 0) / 100))
-      : (parseFloat(totalVolume) || 0)
+    let vol = parseFloat(totalVolume) || 0
+    if (ingredientMode === 'mix') {
+      const amt = parseFloat(mixAmount) || 0
+      const pct = parseFloat(flavorPct) || 0
+      if (amt <= 0 || pct <= 0) return null
+      vol = amt / (pct / 100)
+    }
     if (!(vol > 0)) return null
     const ml = Math.round((target * vol / nic) * 10) / 10
-    return { ml, vol }
+    return { ml, vol: Math.round(vol * 10) / 10 }
   })()
+
+  // Live totals for the sticky summary bar (updates as values change, no Calculate needed)
+  const liveVol = useMemo(() => {
+    if (ingredientMode === 'mix') {
+      const amt = parseFloat(mixAmount) || 0
+      const pct = parseFloat(flavorPct) || 0
+      if (amt <= 0 || pct <= 0) return null
+      return Math.round((amt / (pct / 100)) * 10) / 10
+    }
+    const vol = parseFloat(totalVolume) || 0
+    return vol > 0 ? Math.round(vol * 10) / 10 : null
+  }, [ingredientMode, mixAmount, flavorPct, totalVolume])
+
+  const summaryPg = Math.round(parseFloat(targetPg) || 50)
+  const summaryVg = Math.round(100 - (parseFloat(targetPg) || 50))
 
   const renderWarn = (w) => w ? (
     <View style={styles.inlineWarn} accessibilityLiveRegion="polite">
@@ -222,6 +261,7 @@ export default function NicotineScreen({ navigation, route }) {
 
   function loadRecipe(r) {
     setIngredientMode('flavor')
+    setMixName('')
     setFlavors(Array.isArray(r.flavors)
       ? r.flavors.map(f => ({ id: Date.now() + Math.random(), name: f.name || '', value: String(f.value ?? '') }))
       : [])
@@ -232,6 +272,7 @@ export default function NicotineScreen({ navigation, route }) {
 
   function loadBatch(b) {
     setIngredientMode(b.ingredientMode ?? 'flavor')
+    setMixName(b.ingredientMode === 'mix' && Array.isArray(b.flavors) && b.flavors.length > 0 ? b.flavors[0].name : '')
     setNicStrength(String(b.nicStrength ?? '100'))
     setNicBaseMode(b.nicBaseMode ?? 'pg')
     setNicCustomPg(String(b.nicCustomPg ?? '50'))
@@ -269,7 +310,9 @@ export default function NicotineScreen({ navigation, route }) {
       totalVolume: parseFloat(totalVolume) || 0,
       mixAmount: parseFloat(mixAmount) || 0,
       flavorPct: parseFloat(flavorPct) || 0,
-      flavors: flavors.map(f => ({ name: f.name.trim(), value: parseFloat(f.value) || 0 })),
+      flavors: ingredientMode === 'mix'
+        ? (mixName.trim() ? [{ name: mixName.trim(), value: parseFloat(flavorPct) || 0 }] : [])
+        : flavors.map(f => ({ name: f.name.trim(), value: parseFloat(f.value) || 0 })),
       nicSources: nicSources.map(s => ({ strength: s.strength, baseType: s.baseType, customPg: s.customPg, customVg: s.customVg, amount: s.amount })),
       result: result || null,
     }
@@ -365,293 +408,396 @@ export default function NicotineScreen({ navigation, route }) {
       ].filter(s => s.pct > 0.05)
     : []
 
+  // Shared sections reused by both layouts, so the single-column (mobile) look
+  // stays pixel-identical and the wide web layout composes from the same blocks.
+  // The hero is kept separate: on wide web it spans the full width above the two
+  // columns (so Theme/Lang controls sit at the app's far right, like other tabs),
+  // while the narrow layout keeps it as the first scrolled block.
+  const heroBlock = (
+    <View style={[styles.hero, desktop && styles.heroDesktop]}>
+      {!desktop && (
+        <View style={styles.iconCircle}>
+          <Ionicons name="flask" size={20} color={colors.primaryLight} />
+        </View>
+      )}
+      <View style={styles.heroText}>
+        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('build.title')}</Text>
+        <Text style={styles.subtitle} numberOfLines={2}>{t('app.tagline')}</Text>
+      </View>
+      {!desktop && (
+        <View style={styles.heroRight}>
+          <ThemeToggle />
+          <LangToggle />
+        </View>
+      )}
+    </View>
+  )
+
+  const formSections = (
+    <>
+      <View style={styles.card}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="options" size={14} color={colors.primaryLight} />
+          <Text style={styles.sectionTitle}>{t('build.ingredients')}</Text>
+        </View>
+
+        <View style={styles.ingredientTypeCard}>
+          <View style={styles.toggleRow}>
+            <TouchableOpacity style={[styles.toggle, ingredientMode === 'flavor' && styles.toggleActive]} onPress={() => setIngredientMode('flavor')} activeOpacity={0.7}>
+              <Ionicons name="leaf" size={16} color={ingredientMode === 'flavor' ? colors.primaryLight : colors.textDim} />
+              <Text style={[styles.toggleText, ingredientMode === 'flavor' && styles.toggleTextActive]}>{t('build.flavor.mode')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.toggle, ingredientMode === 'mix' && styles.toggleActive]} onPress={() => setIngredientMode('mix')} activeOpacity={0.7}>
+              <Ionicons name="flask" size={16} color={ingredientMode === 'mix' ? colors.primaryLight : colors.textDim} />
+              <Text style={[styles.toggleText, ingredientMode === 'mix' && styles.toggleTextActive]}>{t('build.mix.mode')}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.loadBatchRow}>
+            <TouchableOpacity style={styles.loadBatchBtn} onPress={() => setLoadBatchModalVisible(true)} activeOpacity={0.7}>
+              <Ionicons name="layers-outline" size={15} color={colors.primaryLight} />
+              <Text style={styles.loadBatchBtnText}>{t('build.loadBatch')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {ingredientMode === 'mix' && (
+          <View style={styles.flavorCard}>
+            <Text style={styles.flavorTitle}>{t('build.mixTitle')}</Text>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>{t('build.mixName')}</Text>
+              <FlavorAutocomplete
+                value={mixName}
+                onChangeText={setMixName}
+                placeholder={t('build.mixNamePlaceholder')}
+              />
+              <Text style={styles.fieldHint}>{t('build.mixNameHint')}</Text>
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>{t('build.concentrateAmount')}</Text>
+              <PresetGrid items={MIX_VOLUMES} value={mixAmount} onSelect={setMixAmount} suffix="ml" />
+              <SliderInput label="" value={mixAmount} onChangeText={setMixAmount} min={0} max={500} step={5} suffix="ml" />
+            </View>
+            <SliderInput label={t('build.concentratePct')} value={flavorPct} onChangeText={setFlavorPct} min={0} max={40} step={0.5} suffix="%" />
+            {renderWarn(highFlavorWarn)}
+            {mixTotal !== null && (
+              <View style={styles.mixPreview}>
+                <Ionicons name="flask-outline" size={14} color={colors.primaryLight} />
+                <Text style={styles.mixPreviewText}>
+                  {t('build.makesAbout')} <Text style={styles.mixPreviewValue}>{mixTotal} ml</Text> {t('build.totalLiquid')}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {ingredientMode === 'flavor' && (
+          <View style={styles.flavorCard}>
+            <Text style={styles.flavorTitle}>{t('build.flavorTitle')}</Text>
+
+            <View style={styles.flavorList}>
+              {flavors.map((f, i) => (
+                <View key={f.id} style={styles.flavorRow}>
+                  <Text style={styles.flavorIndex}>{i + 1}</Text>
+                  <FlavorAutocomplete
+                    value={f.name}
+                    onChangeText={v => updateFlavor(f.id, 'name', v)}
+                    placeholder={t('common.name')}
+                    exclude={flavors.map(o => o.name).filter(o => o !== f.name)}
+                    recs={flavorRecs}
+                    onPick={(name, rec, val) => {
+                      if (val != null) {
+                        updateFlavor(f.id, 'value', String(val))
+                        return
+                      }
+                      const rv = getRecValue(rec)
+                      if (rv != null && !(parseFloat(f.value) > 0)) {
+                        updateFlavor(f.id, 'value', String(rv))
+                      }
+                    }}
+                  />
+                  <>
+                    <Text style={styles.flavorPct}>%</Text>
+                    <TextInput
+                      style={styles.flavorInput}
+                      value={f.value}
+                      onChangeText={v => {
+                        let val = v.replace(/[^0-9.]/g, '')
+                        if (parseFloat(val) > 100) val = '100'
+                        updateFlavor(f.id, 'value', val)
+                      }}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textDim}
+                    />
+                    <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => removeFlavor(f.id)} accessibilityRole="button" accessibilityLabel={`${t('recipes.removeFlavor')} ${i + 1}`}>
+                      <Ionicons name="close-circle" size={18} color={colors.danger} />
+                    </TouchableOpacity>
+                  </>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.addFlavorBtn} onPress={addFlavor} activeOpacity={0.7}>
+              <Ionicons name="add-circle-outline" size={16} color={colors.success} />
+              <Text style={styles.addFlavorBtnText}>{t('recipes.addFlavor')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.loadFlavorBtn} onPress={() => { setLoadSearch(''); setLoadModalVisible(true) }} activeOpacity={0.7}>
+              <Ionicons name="library-outline" size={16} color={colors.primaryLight} />
+              <Text style={styles.loadFlavorBtnText}>{t('build.loadFlavorsFromRecipe')}</Text>
+            </TouchableOpacity>
+            {renderWarn(highFlavorWarn)}
+          </View>
+        )}
+
+        <View style={styles.nicCard}>
+          <Text style={styles.nicTitle}>{t('build.nicotine')}</Text>
+
+          <View style={styles.fieldGroup}>
+          <SliderInput label={t('build.nicStrength')} value={nicStrength} onChangeText={setNicStrength} min={0} max={100} step={1} suffix="mg/ml" />
+          {renderWarn(highNicWarn)}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>{t('build.nicBaseType')}</Text>
+            <View style={styles.modeRow}>
+              {[
+                { key: 'pg', label: t('build.pg100') },
+                { key: 'vg', label: t('build.vg100') },
+                { key: 'custom', label: t('build.custom') },
+              ].map(m => (
+                <TouchableOpacity
+                  key={m.key}
+                  style={[styles.modeBtn, nicBaseMode === m.key && styles.modeBtnActive]}
+                  onPress={() => setNicBaseMode(m.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.modeBtnText, nicBaseMode === m.key && styles.modeBtnTextActive]}>{m.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {nicBaseMode === 'custom' && (
+              <View style={styles.customSpacing}>
+                <PgVgSlider value={nicCustomPg} onChangeText={v => { setNicCustomPg(v); const n = parseFloat(v) || 0; setNicCustomVg(String(100 - n)) }} />
+              </View>
+            )}
+          </View>
+        </View>
+
+        {nicSources.length > 0 && (
+          <View style={styles.cardSection}>
+            {warning && (
+              <View style={styles.warningBox}>
+                <Ionicons name="warning" size={16} color={colors.danger} />
+                <Text style={styles.warningText}>{warning}</Text>
+              </View>
+            )}
+            <Text style={styles.cardSectionTitle}>{t('build.savedSources')}</Text>
+            {nicSources.map(s => (
+              <View key={s.id}>
+                <SourceCard
+                  source={s}
+                  onUpdate={(field, value) => {
+                    setNicSources(prev => prev.map(x => x.id === s.id ? { ...x, [field]: value } : x))
+                  }}
+                  onDelete={() => setNicSources(nicSources.filter(x => x.id !== s.id))}
+                  amountInputRef={el => { amountRefs.current[s.id] = el }}
+                />
+              </View>
+            ))}
+          </View>
+        )}
+
+        <TouchableOpacity style={styles.addNicBtn} onPress={() => {
+          setNicSources([...nicSources, { id: Date.now(), strength: nicStrength, baseType: nicBaseMode, customPg: nicCustomPg, customVg: nicCustomVg, amount: '' }])
+        }}>
+          <Ionicons name="add-circle-outline" size={16} color={colors.primaryLight} />
+          <Text style={styles.addNicBtnText}>{t('build.addNicSource')}</Text>
+        </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.targetCard}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="options" size={14} color={colors.primaryLight} />
+          <Text style={styles.sectionTitle}>{t('build.target')}</Text>
+        </View>
+
+        {ingredientMode !== 'mix' && (
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>{t('build.targetAmount')}</Text>
+            <PresetGrid items={TARGET_VOLUMES} value={totalVolume} onSelect={setTotalVolume} suffix="ml" />
+            <SliderInput label="" value={totalVolume} onChangeText={setTotalVolume} min={0} max={500} step={5} suffix="ml" />
+          </View>
+        )}
+
+        <View style={styles.fieldGroup}>
+          <View style={styles.presetRowSpread}>
+            {VG_PG_PRESETS.map((p, i) => {
+              const active = parseFloat(targetPg) === p.pg
+              return (
+                <TouchableOpacity key={i} style={[styles.preset, styles.presetSpread, active && styles.presetActive]} onPress={() => setTargetPg(String(p.pg))} activeOpacity={0.7}>
+                  <Text style={[styles.presetText, active && styles.presetTextActive]}>{p.label}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+          <PgVgSlider label={t('build.targetPgVg')} value={targetPg} onChangeText={setTargetPg} />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>{t('build.targetStrength')}</Text>
+          <PresetGrid items={NIC_PRESETS} value={targetStrength} onSelect={setTargetStrength} suffix="mg" />
+          <SliderInput label="" value={targetStrength} onChangeText={setTargetStrength} min={0} max={50} step={0.5} suffix="mg/ml" />
+          {renderWarn(targetHighWarn)}
+          {nicPreview && (
+            <View style={styles.presetPreview}>
+              <Ionicons name="calculator-outline" size={14} color={colors.primaryLight} />
+              <Text style={styles.presetPreviewText}>
+                {t('build.presetPreview', { ml: nicPreview.ml, strength: parseFloat(nicStrength) || 0, vol: nicPreview.vol, target: parseFloat(targetStrength) || 0 })}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </>
+  )
+
+  const resultSection = (
+    <View
+      ref={resultWrapRef}
+      onLayout={e => {
+        resultYRef.current = e.nativeEvent.layout.y
+        // In the wide layout the result is always visible in the right column,
+        // so only the single-column layout auto-scrolls to it.
+        if (pendingScrollRef.current && items && !wide) {
+          pendingScrollRef.current = false
+          scrollRef.current?.scrollTo({ y: Math.max(resultYRef.current - 16, 0), animated: true })
+        }
+      }}
+    >
+      {items && <ResultBox items={items} title={t('build.recipe')} segments={composition} totalMl={result.actualTotal} flat={wide} />}
+    </View>
+  )
+
+  const dock = (
+    <View style={styles.bottomDock}>
+      <Animated.View pointerEvents="none" style={[styles.dockShadowLayer, { opacity: dockShadowOpacity }]} />
+      <View style={styles.summaryBar} accessibilityLiveRegion="polite">
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>{t('build.summaryBase')}</Text>
+          <View style={styles.summaryValueRow}>
+            <Ionicons name="flask-outline" size={11} color={colors.primaryLight} />
+            <Text style={styles.summaryValue} numberOfLines={1}>{nicPreview ? `${nicPreview.ml} ml` : '—'}</Text>
+          </View>
+        </View>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>{t('build.summaryVol')}</Text>
+          <View style={styles.summaryValueRow}>
+            <Ionicons name="water-outline" size={11} color={colors.primaryLight} />
+            <Text style={styles.summaryValue} numberOfLines={1}>{liveVol != null ? `${liveVol} ml` : '—'}</Text>
+          </View>
+        </View>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>{t('build.summaryVgPg')}</Text>
+          <View style={styles.summaryValueRow}>
+            <Ionicons name="contrast-outline" size={11} color={colors.primaryLight} />
+            <Text style={styles.summaryValue} numberOfLines={1}>{`${summaryVg}/${summaryPg}`}</Text>
+          </View>
+        </View>
+      </View>
+      <View style={[styles.stickyBar, desktop && styles.stickyBarWide]}>
+        <TouchableOpacity style={styles.saveBatchBtn} onPress={() => { hapticLight(); setSaveModalVisible(true) }} activeOpacity={0.8} hitSlop={{ top: 4, bottom: 4 }}>
+          <Ionicons name="layers-outline" size={18} color={colors.primaryLight} />
+          <Text style={styles.saveBatchBtnText}>{t('build.save')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.calcBtn} onPress={() => { hapticLight(); calc() }} activeOpacity={0.9} hitSlop={{ top: 4, bottom: 4 }}>
+          <Ionicons name="calculator" size={18} color="#fff" />
+          <Text style={styles.calcBtnText}>{t('build.calculate')}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        <View style={styles.hero}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="flask" size={24} color={colors.primaryLight} />
-          </View>
-          <View style={styles.heroText}>
-            <Text style={styles.title}>Flavorum</Text>
-            <Text style={styles.subtitle} numberOfLines={2}>{t('app.tagline')}</Text>
-          </View>
-          <View style={styles.heroRight}>
-            <TouchableOpacity
-              style={styles.themeBtn}
-              onPress={() => setThemeModalVisible(true)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('theme.title')}
+        {wide ? (
+          <>
+            <StickyHeader ref={headerRef}>{heroBlock}</StickyHeader>
+            <View style={styles.wideBody}>
+            <ScrollView
+              ref={scrollRef}
+              style={styles.wideLeft}
+              contentContainerStyle={styles.wideLeftContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
             >
-              <Ionicons name="color-palette" size={20} color={colors.primaryLight} />
-            </TouchableOpacity>
-            <LangToggle />
-          </View>
-        </View>
-
-        {flavors.length === 0 && !result && nicSources.length === 0 && (
-          <View style={styles.hintBox}>
-            <View style={styles.hintHeader}>
-              <Ionicons name="sparkles" size={15} color={colors.primaryLight} />
-              <Text style={styles.hintTitle}>{t('build.hintTitle')}</Text>
-            </View>
-            <Text style={styles.hintSteps}>{t('build.hintSteps')}</Text>
-          </View>
-        )}
-
-        <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="options" size={14} color={colors.primaryLight} />
-            <Text style={styles.sectionTitle}>{t('build.ingredients')}</Text>
-          </View>
-
-          <View style={styles.ingredientTypeCard}>
-            <View style={styles.toggleRow}>
-              <TouchableOpacity style={[styles.toggle, ingredientMode === 'flavor' && styles.toggleActive]} onPress={() => setIngredientMode('flavor')} activeOpacity={0.7}>
-                <Ionicons name="leaf" size={16} color={ingredientMode === 'flavor' ? colors.primaryLight : colors.textDim} />
-                <Text style={[styles.toggleText, ingredientMode === 'flavor' && styles.toggleTextActive]}>{t('build.flavor.mode')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.toggle, ingredientMode === 'mix' && styles.toggleActive]} onPress={() => setIngredientMode('mix')} activeOpacity={0.7}>
-                <Ionicons name="flask" size={16} color={ingredientMode === 'mix' ? colors.primaryLight : colors.textDim} />
-                <Text style={[styles.toggleText, ingredientMode === 'mix' && styles.toggleTextActive]}>{t('build.mix.mode')}</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.loadBatchRow}>
-              <TouchableOpacity style={styles.loadBatchBtn} onPress={() => setLoadBatchModalVisible(true)} activeOpacity={0.7}>
-                <Ionicons name="layers-outline" size={15} color={colors.primaryLight} />
-                <Text style={styles.loadBatchBtnText}>{t('build.loadBatch')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {ingredientMode === 'mix' && (
-            <View style={styles.flavorCard}>
-              <Text style={styles.flavorTitle}>{t('build.mixTitle')}</Text>
-
-              <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>{t('build.concentrateAmount')}</Text>
-                <PresetGrid items={MIX_VOLUMES} value={mixAmount} onSelect={setMixAmount} suffix="ml" />
-                <SliderInput label="" value={mixAmount} onChangeText={setMixAmount} min={0} max={500} step={5} suffix="ml" />
-              </View>
-              <SliderInput label={t('build.concentratePct')} value={flavorPct} onChangeText={setFlavorPct} min={0} max={40} step={0.5} suffix="%" />
-              {renderWarn(highFlavorWarn)}
-              {mixTotal !== null && (
-                <View style={styles.mixPreview}>
-                  <Ionicons name="flask-outline" size={14} color={colors.primaryLight} />
-                  <Text style={styles.mixPreviewText}>
-                    {t('build.makesAbout')} <Text style={styles.mixPreviewValue}>{mixTotal} ml</Text> {t('build.totalLiquid')}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {ingredientMode === 'flavor' && (
-            <View style={styles.flavorCard}>
-              <Text style={styles.flavorTitle}>{t('build.flavorTitle')}</Text>
-
-              <View style={styles.flavorList}>
-                {flavors.map((f, i) => (
-                  <View key={f.id} style={styles.flavorRow}>
-                    <Text style={styles.flavorIndex}>{i + 1}</Text>
-                    <FlavorAutocomplete
-                      value={f.name}
-                      onChangeText={v => updateFlavor(f.id, 'name', v)}
-                      placeholder={t('common.name')}
-                      exclude={flavors.map(o => o.name).filter(o => o !== f.name)}
-                      recs={flavorRecs}
-                      onPick={(name, rec, val) => {
-                        if (val != null) {
-                          updateFlavor(f.id, 'value', String(val))
-                          return
-                        }
-                        const rv = getRecValue(rec)
-                        if (rv != null && !(parseFloat(f.value) > 0)) {
-                          updateFlavor(f.id, 'value', String(rv))
-                        }
-                      }}
-                    />
-                    <>
-                      <Text style={styles.flavorPct}>%</Text>
-                      <TextInput
-                        style={styles.flavorInput}
-                        value={f.value}
-                        onChangeText={v => {
-                          let val = v.replace(/[^0-9.]/g, '')
-                          if (parseFloat(val) > 100) val = '100'
-                          updateFlavor(f.id, 'value', val)
-                        }}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor={colors.textDim}
-                      />
-                      <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => removeFlavor(f.id)} accessibilityRole="button" accessibilityLabel={`${t('recipes.removeFlavor')} ${i + 1}`}>
-                        <Ionicons name="close-circle" size={18} color={colors.danger} />
-                      </TouchableOpacity>
-                    </>
+              {formSections}
+            </ScrollView>
+            <View style={styles.wideRight}>
+            <ScrollView
+              style={styles.wideRightScroll}
+              contentContainerStyle={styles.wideRightContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+            >
+                {resultSection}
+                {!items && (
+                  <View style={styles.wideEmpty}>
+                    <Ionicons name="flask-outline" size={30} color={colors.primary + '80'} />
+                    <Text style={styles.wideEmptyTitle}>{t('build.wideEmptyTitle')}</Text>
+                    <Text style={styles.wideEmptyText}>{t('build.wideEmptyText')}</Text>
                   </View>
-                ))}
-              </View>
-
-              <TouchableOpacity style={styles.addFlavorBtn} onPress={addFlavor} activeOpacity={0.7}>
-                <Ionicons name="add-circle-outline" size={16} color={colors.success} />
-                <Text style={styles.addFlavorBtnText}>{t('recipes.addFlavor')}</Text>
+                )}
+              </ScrollView>
+            </View>
+            </View>
+            {/* Desktop: the Save/Calculate dock spans the full content width
+                below the two columns — never wider than the wrapper, so it
+                stays aligned with the content (mobile keeps full width). */}
+            {dock}
+          </>
+        ) : (
+          <>
+            <StickyHeader ref={headerRef}>{heroBlock}</StickyHeader>
+            <ScrollView
+              ref={scrollRef}
+              style={styles.scroll}
+              contentContainerStyle={styles.content}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+            >
+              {formSections}
+              {resultSection}
+            </ScrollView>
+            {dock}
+            {showTop && (
+              <TouchableOpacity
+                style={styles.topBtn}
+                onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={t('build.backToTop')}
+              >
+                <Ionicons name="arrow-up" size={22} color="#fff" />
               </TouchableOpacity>
-
-              <TouchableOpacity style={styles.loadFlavorBtn} onPress={() => { setLoadSearch(''); setLoadModalVisible(true) }} activeOpacity={0.7}>
-                <Ionicons name="library-outline" size={16} color={colors.primaryLight} />
-                <Text style={styles.loadFlavorBtnText}>{t('build.loadFlavorsFromRecipe')}</Text>
-              </TouchableOpacity>
-              {renderWarn(highFlavorWarn)}
-            </View>
-          )}
-
-          <View style={styles.nicCard}>
-            <Text style={styles.nicTitle}>{t('build.nicotine')}</Text>
-
-            <View style={styles.fieldGroup}>
-            <SliderInput label={t('build.nicStrength')} value={nicStrength} onChangeText={setNicStrength} min={0} max={100} step={1} suffix="mg/ml" />
-            {renderWarn(highNicWarn)}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>{t('build.nicBaseType')}</Text>
-              <View style={styles.modeRow}>
-                {[
-                  { key: 'pg', label: t('build.pg100') },
-                  { key: 'vg', label: t('build.vg100') },
-                  { key: 'custom', label: t('build.custom') },
-                ].map(m => (
-                  <TouchableOpacity
-                    key={m.key}
-                    style={[styles.modeBtn, nicBaseMode === m.key && styles.modeBtnActive]}
-                    onPress={() => setNicBaseMode(m.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.modeBtnText, nicBaseMode === m.key && styles.modeBtnTextActive]}>{m.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {nicBaseMode === 'custom' && (
-                <View style={styles.customSpacing}>
-                  <PgVgSlider value={nicCustomPg} onChangeText={v => { setNicCustomPg(v); const n = parseFloat(v) || 0; setNicCustomVg(String(100 - n)) }} />
-                </View>
-              )}
-            </View>
-          </View>
-
-          {nicSources.length > 0 && (
-            <View style={styles.cardSection}>
-              {warning && (
-                <View style={styles.warningBox}>
-                  <Ionicons name="warning" size={16} color={colors.danger} />
-                  <Text style={styles.warningText}>{warning}</Text>
-                </View>
-              )}
-              <Text style={styles.cardSectionTitle}>{t('build.savedSources')}</Text>
-              {nicSources.map(s => (
-                <View key={s.id}>
-                  <SourceCard
-                    source={s}
-                    onUpdate={(field, value) => {
-                      setNicSources(prev => prev.map(x => x.id === s.id ? { ...x, [field]: value } : x))
-                    }}
-                    onDelete={() => setNicSources(nicSources.filter(x => x.id !== s.id))}
-                    amountInputRef={el => { amountRefs.current[s.id] = el }}
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-
-          <TouchableOpacity style={styles.addNicBtn} onPress={() => {
-            setNicSources([...nicSources, { id: Date.now(), strength: nicStrength, baseType: nicBaseMode, customPg: nicCustomPg, customVg: nicCustomVg, amount: '' }])
-          }}>
-            <Ionicons name="add-circle-outline" size={16} color={colors.primaryLight} />
-            <Text style={styles.addNicBtnText}>{t('build.addNicSource')}</Text>
-          </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.targetCard}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="options" size={14} color={colors.primaryLight} />
-            <Text style={styles.sectionTitle}>{t('build.target')}</Text>
-          </View>
-
-          {ingredientMode !== 'mix' && (
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>{t('build.targetAmount')}</Text>
-              <PresetGrid items={TARGET_VOLUMES} value={totalVolume} onSelect={setTotalVolume} suffix="ml" />
-              <SliderInput label="" value={totalVolume} onChangeText={setTotalVolume} min={0} max={500} step={5} suffix="ml" />
-            </View>
-          )}
-
-          <View style={styles.fieldGroup}>
-            <View style={styles.presetRowSpread}>
-              {VG_PG_PRESETS.map((p, i) => {
-                const active = parseFloat(targetPg) === p.pg
-                return (
-                  <TouchableOpacity key={i} style={[styles.preset, styles.presetSpread, active && styles.presetActive]} onPress={() => setTargetPg(String(p.pg))} activeOpacity={0.7}>
-                    <Text style={[styles.presetText, active && styles.presetTextActive]}>{p.label}</Text>
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-            <PgVgSlider label={t('build.targetPgVg')} value={targetPg} onChangeText={setTargetPg} />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>{t('build.targetStrength')}</Text>
-            <PresetGrid items={NIC_PRESETS} value={targetStrength} onSelect={setTargetStrength} suffix="mg" />
-            <SliderInput label="" value={targetStrength} onChangeText={setTargetStrength} min={0} max={50} step={0.5} suffix="mg/ml" />
-            {renderWarn(targetHighWarn)}
-            {nicPreview && (
-              <View style={styles.presetPreview}>
-                <Ionicons name="calculator-outline" size={14} color={colors.primaryLight} />
-                <Text style={styles.presetPreviewText}>
-                  {t('build.presetPreview', { ml: nicPreview.ml, strength: parseFloat(nicStrength) || 0, vol: nicPreview.vol, target: parseFloat(targetStrength) || 0 })}
-                </Text>
-              </View>
             )}
-          </View>
-        </View>
-
-        <View
-          ref={resultWrapRef}
-          onLayout={e => {
-            resultYRef.current = e.nativeEvent.layout.y
-            if (pendingScrollRef.current && items) {
-              pendingScrollRef.current = false
-              scrollRef.current?.scrollTo({ y: Math.max(resultYRef.current - 16, 0), animated: true })
-            }
-          }}
-        >
-          {items && <ResultBox items={items} title={t('build.recipe')} segments={composition} />}
-        </View>
-      </ScrollView>
-
-      <View style={styles.stickyBar}>
-        <TouchableOpacity style={styles.saveBatchBtn} onPress={() => setSaveModalVisible(true)} activeOpacity={0.8} hitSlop={{ top: 4, bottom: 4 }}>
-          <Ionicons name="layers-outline" size={18} color={colors.primaryLight} />
-          <Text style={styles.saveBatchBtnText}>{t('build.save')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.calcBtn} onPress={calc} activeOpacity={0.9} hitSlop={{ top: 4, bottom: 4 }}>
-          <Ionicons name="calculator" size={18} color="#fff" />
-          <Text style={styles.calcBtnText}>{t('build.calculate')}</Text>
-        </TouchableOpacity>
-      </View>
+          </>
+        )}
       </KeyboardAvoidingView>
 
       <Modal visible={loadBatchModalVisible} transparent animationType="fade" onRequestClose={() => setLoadBatchModalVisible(false)}>
@@ -765,6 +911,23 @@ export default function NicotineScreen({ navigation, route }) {
               placeholderTextColor={colors.textDim}
               autoFocus
             />
+            <TouchableOpacity
+              style={styles.costHint}
+              onPress={() => {
+                setSaveModalVisible(false)
+                hapticLight()
+                navigation.navigate('prices')
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('build.saveCostLink')}
+            >
+              <Ionicons name="pricetag" size={13} color={colors.primaryLight} />
+              <Text style={styles.costHintText}>
+                <Text style={styles.costHintMain}>{t('build.saveCostHint')} </Text>
+                <Text style={styles.costHintLink}>{t('build.saveCostLink')} →</Text>
+              </Text>
+            </TouchableOpacity>
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.modalBtn, styles.modalCancel]} onPress={() => setSaveModalVisible(false)} activeOpacity={0.7}>
                 <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
@@ -777,7 +940,6 @@ export default function NicotineScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      <ThemePickerModal visible={themeModalVisible} onClose={() => setThemeModalVisible(false)} />
     </SafeAreaView>
   )
 }
@@ -787,8 +949,38 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   kav: { flex: 1 },
   scroll: { flex: 1 },
   content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 48 },
+  // Sticky header above the layout (narrow & wide — matches other tabs)
+  // Two-column desktop layout (wide web only — never used on mobile)
+  wideBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.lg,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+  },
+  wideLeft: { flex: 1 },
+  wideLeftContent: { paddingTop: spacing.lg, paddingBottom: 48 },
+  wideRight: { width: 400, flexShrink: 0 },
+  wideRightScroll: { flex: 1 },
+  wideRightContent: { paddingTop: spacing.lg, paddingBottom: spacing.md },
+  wideEmpty: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderStyle: 'dashed',
+    padding: spacing.xl,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: spacing.md,
+  },
+  wideEmptyTitle: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, textAlign: 'center' },
+  wideEmptyText: { fontSize: fs(13, scale), color: colors.textDim, textAlign: 'center', lineHeight: 19 },
   fieldGroup: { marginBottom: spacing.md },
   fieldLabel: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.3 },
+  fieldHint: { fontSize: fs(11, scale), color: colors.textDim, marginTop: 6, lineHeight: 15 },
   modeRow: { flexDirection: 'row', gap: 6 },
   modeBtn: {
     flex: 1,
@@ -802,31 +994,21 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   modeBtnText: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500' },
   modeBtnTextActive: { color: colors.primaryLight },
   customSpacing: { marginTop: spacing.md },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
+  heroDesktop: { marginBottom: spacing.sm },
   heroText: { flex: 1, flexShrink: 1 },
   heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  themeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  hintBox: {
-    backgroundColor: colors.primary + '12',
-    borderWidth: 1,
-    borderColor: colors.primary + '40',
-    borderRadius: 14,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  hintHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  hintTitle: { fontSize: fs(14, scale), fontWeight: '700', color: colors.primaryLight, letterSpacing: 0.3, textTransform: 'uppercase' },
-  hintSteps: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '500', lineHeight: 22 },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     backgroundColor: colors.primary + '1F',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: fs(29, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: fs(16, scale), color: colors.textMuted, marginTop: 1 },
+  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
+  titleDesktop: { fontSize: fs(18, scale) },
+  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -965,6 +1147,40 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   presetActive: { borderColor: colors.primary, backgroundColor: colors.primary + '2E' },
   presetTextActive: { color: colors.primaryLight, fontWeight: '700' },
   presetText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '500' },
+  bottomDock: {
+    borderTopWidth: 1,
+    borderTopColor: colors.primary + '1F',
+    backgroundColor: colors.bg,
+  },
+  // Dedicated shadow layer above the dock: only its opacity animates, which
+  // works on web (RN-web Animated can't emit an interpolated shadow* style).
+  dockShadowLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: '100%',
+    height: 8,
+    ...dockShadow,
+  },
+  summaryBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  summaryItem: { flex: 1, alignItems: 'center', gap: 1 },
+  summaryValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  summaryLabel: {
+    fontSize: fs(9, scale),
+    color: colors.textDim,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  summaryValue: { fontSize: fs(12, scale), fontWeight: '700', color: colors.primaryLight },
+  summaryDivider: { width: 1, height: 18, backgroundColor: colors.primary + '1F' },
   stickyBar: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -972,8 +1188,13 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
     backgroundColor: colors.bg,
-    borderTopWidth: 1,
-    borderTopColor: colors.primary + '1F',
+  },
+  // Desktop (sidebar present): the dock spans the content width, but the
+  // buttons themselves stay a comfortable size, centered in the bar.
+  stickyBarWide: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 440,
   },
   calcBtn: {
     flex: 1.6,
@@ -999,6 +1220,22 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.primary + '0F',
   },
   saveBatchBtnText: { fontSize: fs(15, scale), fontWeight: '600', color: colors.primaryLight },
+  topBtn: {
+    position: 'absolute',
+    right: 20,
+    bottom: 84,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   sourceCard: {
     backgroundColor: colors.primary + '08',
     borderWidth: 1,
@@ -1028,6 +1265,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginTop: 4,
+    marginBottom: spacing.sm,
     padding: 8,
     borderRadius: 8,
     backgroundColor: colors.warning + '1F',
@@ -1118,8 +1356,21 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     fontSize: fs(17, scale),
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     },
+  costHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: colors.primary + '12',
+    marginBottom: spacing.md,
+  },
+  costHintText: { flex: 1, flexShrink: 1 },
+  costHintMain: { fontSize: fs(12, scale), color: colors.textMuted, lineHeight: 17 },
+  costHintLink: { fontSize: fs(12, scale), color: colors.primaryLight, fontWeight: '700' },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -7,10 +7,15 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import Input from '../components/Input'
 import LangToggle from '../components/LangToggle'
-import { fs, spacing, tagColors } from '../theme'
+import ThemeToggle from '../components/ThemeToggle'
+import StickyHeader from '../components/StickyHeader'
+import { fs, spacing, tagColors, useWideWeb, useSidebarWeb } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { loadRecipes, saveRecipes, newRecipeId, seedStarterRecipes, loadInventory, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
 import { formatRecipeText } from '../utils/shareUtils'
+import { useUndo } from '../utils/useUndo'
+import UndoToast from '../components/UndoToast'
+import { useEscToClose } from '../utils/useEscToClose'
 import { useI18n } from '../i18n'
 import * as Clipboard from 'expo-clipboard'
 import QRCode from 'react-native-qrcode-svg'
@@ -19,6 +24,9 @@ export default function RecipesScreen({ navigation }) {
   const { t } = useI18n()
   const { theme: colors, textScale } = useTheme()
   const styles = createStyles(colors, textScale)
+  // Wide web (viewport >= 820px): recipe cards render as a two-column grid.
+  const wide = useWideWeb()
+  const desktop = useSidebarWeb()
   const scrollRef = useRef(null)
   const [recipes, setRecipes] = useState([])
   const [inventory, setInventory] = useState([])
@@ -38,9 +46,13 @@ export default function RecipesScreen({ navigation }) {
   const [copySuccess, setCopySuccess] = useState(false)
   const [copyError, setCopyError] = useState(false)
   const [shareTab, setShareTab] = useState('text') // 'text' | 'qr'
+  useEscToClose(scaleRecipe !== null, () => setScaleRecipe(null))
+  useEscToClose(shareRecipe !== null, () => { setShareRecipe(null); setShareTab('text') })
   const [selectedTags, setSelectedTags] = useState([])
   const [tagFilter, setTagFilter] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
+  const headerRef = useRef(null)
+  const onHeaderScroll = useCallback((e) => headerRef.current?.handleScroll(e), [])
 
   const RECIPE_TAGS = ['fruit', 'dessert', 'menthol', 'bakery', 'tobacco', 'beverage', 'candy', 'floral']
 
@@ -221,13 +233,22 @@ export default function RecipesScreen({ navigation }) {
     setFlavorRecs(nextRecs)
   }
 
+  const { undo, showUndo, dismissUndo, applyUndo } = useUndo()
+
   const remove = useCallback(async (id) => {
+    const target = recipes.find(r => r.id === id)
     const updated = recipes.filter(r => r.id !== id)
     setRecipes(updated)
     await saveRecipes(updated)
     const nextRecs = await recomputeFlavorRecs(updated, flavorRecs)
     setFlavorRecs(nextRecs)
-  }, [recipes, flavorRecs])
+    if (target) {
+      showUndo(t('recipes.undoDeleteMsg'), () => {
+        setRecipes(recipes)
+        saveRecipes(recipes).then(() => recomputeFlavorRecs(recipes, flavorRecs)).then(setFlavorRecs)
+      })
+    }
+  }, [recipes, flavorRecs, showUndo, t])
 
   const handleCopyText = async (text) => {
     try {
@@ -242,37 +263,50 @@ export default function RecipesScreen({ navigation }) {
     }
   }
 
+  const heroBlock = (
+    <View style={[styles.hero, desktop && styles.heroDesktop]}>
+      {!desktop && (
+        <View style={styles.iconCircle}>
+          <Ionicons name="bookmark" size={20} color={colors.primaryLight} />
+        </View>
+      )}
+      <View style={styles.heroText}>
+        <Text style={[styles.title, desktop && styles.titleDesktop]}>{t('recipes.title')}</Text>
+        <Text style={styles.subtitle} numberOfLines={2}>{t('recipes.subtitle')}</Text>
+      </View>
+      {!desktop && (
+        <View style={styles.heroRight}>
+          <ThemeToggle />
+          <LangToggle />
+        </View>
+      )}
+    </View>
+  )
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <StickyHeader ref={headerRef}>{heroBlock}</StickyHeader>
       <FlatList
         ref={scrollRef}
+        key={wide ? 'recipes-grid' : 'recipes-list'}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         data={recipes.length > 0 ? filteredRecipes : []}
         keyExtractor={(r) => r.id}
+        numColumns={wide ? 2 : 1}
+        columnWrapperStyle={wide ? styles.recipeGridRow : undefined}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onScroll={onHeaderScroll}
+        scrollEventThrottle={16}
         initialNumToRender={30}
         maxToRenderPerBatch={30}
         windowSize={7}
         removeClippedSubviews={Platform.OS !== 'web'}
         ListHeaderComponent={
           <>
-        <View style={styles.hero}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="bookmark" size={24} color={colors.primaryLight} />
-          </View>
-          <View style={styles.heroText}>
-            <Text style={styles.title}>{t('recipes.title')}</Text>
-            <Text style={styles.subtitle} numberOfLines={2}>{t('recipes.subtitle')}</Text>
-          </View>
-          <View style={styles.heroRight}>
-            <LangToggle />
-          </View>
-        </View>
-
         <View style={styles.card}>
           <TouchableOpacity
             style={styles.sectionHeaderToggle}
@@ -539,7 +573,7 @@ export default function RecipesScreen({ navigation }) {
           const missing = getMissingFlavors(r)
           const oneMissing = missing.length === 1
           return (
-            <View style={styles.recipeCard}>
+            <View style={[styles.recipeCard, wide && styles.recipeCardWide]}>
               <View style={styles.recipeTitleRow}>
                 <Text style={styles.recipeName}>{r.name}</Text>
                 {canMake && (
@@ -772,6 +806,10 @@ export default function RecipesScreen({ navigation }) {
         onConfirm={() => { remove(confirmId); setConfirmId(null) }}
       />
 
+      {undo && (
+        <UndoToast message={undo.message} onUndo={applyUndo} onDismiss={dismissUndo} />
+      )}
+
       <ConfirmDialog
         visible={confirmCopyId !== null}
         title={t('recipes.copyTitle')}
@@ -796,19 +834,22 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   kav: { flex: 1 },
   scroll: { flex: 1 },
   content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 100 },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
+  // Sticky header above the list (narrow & wide — matches Build tab)
+  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
+  heroDesktop: { marginBottom: spacing.sm },
   heroText: { flex: 1, flexShrink: 1 },
-  heroRight: { marginLeft: 'auto', flexShrink: 0 },
+  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     backgroundColor: colors.primary + '33',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: fs(29, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: fs(16, scale), color: colors.textMuted, marginTop: 1 },
+  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
+  titleDesktop: { fontSize: fs(18, scale) },
+  subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -952,8 +993,15 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  recipeActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
-  recipeIconBtns: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // Wide web: two-column grid row + even vertical rhythm
+  // Note: react-native-web defaults to flex-shrink:0, so flex:1 is required for the
+  // cards to split the row width instead of overflowing at their content width.
+  recipeGridRow: { gap: spacing.md },
+  recipeCardWide: { flex: 1, marginBottom: spacing.md },
+  // Wraps on narrow cards: the icon row (copy/scale/share/edit/delete)
+  // drops below the Brew button instead of overflowing to the right.
+  recipeActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', rowGap: 8, marginBottom: spacing.sm },
+  recipeIconBtns: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   recipeActionBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   brewBtn: {
     flexDirection: 'row',

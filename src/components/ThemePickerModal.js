@@ -5,14 +5,17 @@ import { Ionicons } from '@expo/vector-icons'
 import { fs, themeVariants, isWeb } from '../theme'
 import { useTheme, TEXT_SCALE_PRESETS } from '../ThemeContext'
 import { useI18n } from '../i18n'
+import { useEscToClose } from '../utils/useEscToClose'
 
-const THEME_KEYS = ['ember', 'nebula', 'glacier', 'obsidian', 'contrast']
+const DARK_KEYS = ['ember', 'nebula', 'glacier', 'obsidian', 'contrast']
+const LIGHT_KEYS = ['emberLight', 'nebulaLight', 'glacierLight', 'obsidianLight', 'contrastLight']
 
 export default function ThemePickerModal({ visible, onClose }) {
   const { theme, key: active, setTheme, textScale, setTextScale } = useTheme()
   const { t } = useI18n()
   const styles = createStyles(theme, textScale)
   const cardRef = useRef(null)
+  useEscToClose(visible, onClose)
 
   useEffect(() => {
     if (!visible || !isWeb) return
@@ -62,7 +65,30 @@ export default function ThemePickerModal({ visible, onClose }) {
         </View>
 
           <View style={styles.options}>
-            {THEME_KEYS.map(key => {
+            <Text style={styles.sectionLabel}>{t('theme.darkSection')}</Text>
+            {DARK_KEYS.map(key => {
+              const tv = themeVariants[key]
+              const isActive = active === key
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.option, isActive && { borderColor: tv.primaryLight, backgroundColor: tv.primary + '22' }]}
+                  onPress={() => setTheme(key)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={tv.name}
+                  accessibilityState={{ selected: isActive }}
+                >
+                  <View style={[styles.dot, { backgroundColor: tv.primary }]} />
+                  <Text style={[styles.optionText, { color: isActive ? tv.primaryLight : theme.text }]}>
+                    {tv.name}
+                  </Text>
+                  {isActive && <Ionicons name="checkmark-circle" size={18} color={tv.primaryLight} />}
+                </TouchableOpacity>
+              )
+            })}
+            <Text style={styles.sectionLabel}>{t('theme.lightSection')}</Text>
+            {LIGHT_KEYS.map(key => {
               const tv = themeVariants[key]
               const isActive = active === key
               return (
@@ -189,6 +215,15 @@ const createStyles = (theme, scale = 1) => StyleSheet.create({
   subtitle: { fontSize: fs(13, scale), color: theme.textMuted, marginTop: 3 },
   closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -6, marginRight: -6 },
   options: { gap: 8, marginBottom: 16 },
+  sectionLabel: {
+    fontSize: fs(11, scale),
+    fontWeight: '700',
+    color: theme.textDim,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: 6,
+    marginBottom: 2,
+  },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
