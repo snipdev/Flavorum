@@ -46,3 +46,7 @@ yarn-error.*
 
 # Temp / preview tooling
 .freebuff/
+
+# Local dev artifacts (kept out of the repo)
+scripts/
+DEVAM.md
