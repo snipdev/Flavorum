@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { Animated, View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native'
+import { Animated, View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
@@ -415,8 +415,13 @@ export default function NicotineScreen({ navigation, route }) {
   // The hero is kept separate: on wide web it spans the full width above the two
   // columns (so Theme/Lang controls sit at the app's far right, like other tabs),
   // while the narrow layout keeps it as the first scrolled block.
-  const heroBlock = (
-    <ScreenHero icon="flask" title={t('build.title')} subtitle={t('app.tagline')} subtitleNumberOfLines={2} desktop={desktop} />
+  const heroBlock = desktop ? (
+    <View style={styles.heroLogoRow}>
+      <Image source={require('../../assets/flavorum.png')} style={styles.heroLogo} resizeMode="contain" />
+      <ScreenHero icon="flask" title={t('build.title')} subtitle={t('app.tagline')} subtitleNumberOfLines={2} desktop />
+    </View>
+  ) : (
+    <ScreenHero icon="flask" title={t('build.title')} subtitle={t('app.tagline')} subtitleNumberOfLines={2} desktop={false} />
   )
 
   const flavorFields = (
@@ -668,6 +673,7 @@ export default function NicotineScreen({ navigation, route }) {
   // Wizard step 1: "what do you want to do?" getting-started picker
   const welcomeSection = (
     <View style={styles.welcomeCard}>
+      <Image source={require('../../assets/flavorum.png')} style={styles.welcomeLogo} resizeMode="contain" />
       <Text style={styles.welcomeTitle}>{t('build.welcomeTitle')}</Text>
       <Text style={styles.welcomeSubtitle}>{t('build.welcomeSubtitle')}</Text>
 
@@ -996,6 +1002,8 @@ export default function NicotineScreen({ navigation, route }) {
 
 const createStyles = (colors, scale = 1) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
+  heroLogoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm },
+  heroLogo: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#F3EDE1', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', padding: 7 },
   // Wizard styles
   wizardProgress: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.sm },
   wizardStep: { flex: 1, alignItems: 'center' },
@@ -1026,6 +1034,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.cardBorder,
     padding: spacing.lg,
   },
+  welcomeLogo: { width: 84, height: 84, borderRadius: 22, backgroundColor: '#F3EDE1', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', padding: 14, alignSelf: 'center', marginBottom: spacing.md },
   welcomeTitle: { fontSize: fs(22, scale), fontWeight: '800', color: colors.text, marginBottom: 6 },
   welcomeSubtitle: { fontSize: fs(14, scale), color: colors.textDim, lineHeight: 20, marginBottom: spacing.lg },
   welcomeOption: {

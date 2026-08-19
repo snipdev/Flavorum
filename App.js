@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar'
-import { View, Text, StyleSheet, Platform, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native'
+import { View, Text, StyleSheet, Platform, ScrollView, TouchableOpacity, useWindowDimensions, Image } from 'react-native'
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -203,9 +203,7 @@ function DesktopSidebar({ routeName, state, navigation }) {
   return (
     <View style={styles.sidebar}>
       <View style={styles.sidebarBrand}>
-        <View style={styles.sidebarLogo}>
-          <Ionicons name="flask" size={17} color={theme.primaryLight} />
-        </View>
+        <Image source={require('./assets/flavorum.png')} style={styles.sidebarLogo} resizeMode="contain" />
         <Text style={styles.sidebarBrandText}>Flavorum</Text>
       </View>
 
@@ -430,14 +428,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     gap: 18,
   },
   sidebarBrand: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 6 },
-  sidebarLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: colors.primary + '33',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  sidebarLogo: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F3EDE1', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', padding: 4 },
   sidebarBrandText: { fontSize: 17, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
   sidebarNav: { flex: 1, gap: 3 },
   sidebarItem: {
