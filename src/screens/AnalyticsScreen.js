@@ -221,6 +221,14 @@ export default function AnalyticsScreen() {
         onScroll={onHeaderScroll}
         scrollEventThrottle={16}
       >
+        {recipes.length === 0 && batches.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="bar-chart-outline" size={48} color={colors.textDim} />
+            <Text style={styles.emptyStateTitle}>{t('analytics.emptyState')}</Text>
+            <Text style={styles.emptyStateHint}>{t('analytics.emptyStateHint')}</Text>
+          </View>
+        ) : (
+        <>
         {/* Summary Cards */}
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
@@ -364,6 +372,8 @@ export default function AnalyticsScreen() {
             />
           )}
         </View>
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -424,6 +434,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   exportBtnText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.primaryLight },
   noData: { color: colors.textDim, textAlign: 'center', paddingVertical: 24 },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
+  emptyStateTitle: { fontSize: fs(17, scale), fontWeight: '600', color: colors.textMuted },
+  emptyStateHint: { fontSize: fs(13, scale), color: colors.textDim, textAlign: 'center' },
 
   // Charts row: stacked on narrow, side by side on wide web.
   // flex:1 is required because react-native-web defaults to flex-shrink:0.

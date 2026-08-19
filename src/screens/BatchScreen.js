@@ -84,18 +84,18 @@ export default function BatchScreen({ navigation }) {
   const { undo, showUndo, dismissUndo, applyUndo } = useUndo()
 
   const remove = useCallback((id) => {
-    const target = batches.find(b => b.id === id)
-    const prev = batches
-    const updated = batches.filter(b => b.id !== id)
+    const snapshot = batchesRef.current
+    const target = snapshot.find(b => b.id === id)
+    const updated = snapshot.filter(b => b.id !== id)
     setBatches(updated)
     saveBatches(updated).catch(() => {})
     if (target) {
       showUndo(t('batches.undoDeleteMsg'), () => {
-        setBatches(prev)
-        saveBatches(prev).catch(() => {})
+        setBatches(snapshot)
+        saveBatches(snapshot).catch(() => {})
       })
     }
-  }, [batches, showUndo, t])
+  }, [showUndo, t])
 
   const updateBatchField = (id, field, value) => {
     setBatches(prev => {

@@ -50,6 +50,10 @@ export default function RecipesScreen({ navigation }) {
   const [tagFilter, setTagFilter] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const headerRef = useRef(null)
+  const recipesRef = useRef(recipes)
+  const flavorRecsRef = useRef(flavorRecs)
+  useEffect(() => { recipesRef.current = recipes }, [recipes])
+  useEffect(() => { flavorRecsRef.current = flavorRecs }, [flavorRecs])
   const onHeaderScroll = useCallback((e) => headerRef.current?.handleScroll(e), [])
 
   const RECIPE_TAGS = ['fruit', 'dessert', 'menthol', 'bakery', 'tobacco', 'beverage', 'candy', 'floral']
@@ -234,21 +238,21 @@ export default function RecipesScreen({ navigation }) {
   const { undo, showUndo, dismissUndo, applyUndo } = useUndo()
 
   const remove = useCallback(async (id) => {
-    const target = recipes.find(r => r.id === id)
-    const prevRecipes = recipes
-    const prevFlavorRecs = flavorRecs
-    const updated = recipes.filter(r => r.id !== id)
+    const snapshotRecipes = recipesRef.current
+    const snapshotFlavorRecs = flavorRecsRef.current
+    const target = snapshotRecipes.find(r => r.id === id)
+    const updated = snapshotRecipes.filter(r => r.id !== id)
     setRecipes(updated)
     await saveRecipes(updated)
-    const nextRecs = await recomputeFlavorRecs(updated, flavorRecs)
+    const nextRecs = await recomputeFlavorRecs(updated, snapshotFlavorRecs)
     setFlavorRecs(nextRecs)
     if (target) {
       showUndo(t('recipes.undoDeleteMsg'), () => {
-        setRecipes(prevRecipes)
-        saveRecipes(prevRecipes).then(() => recomputeFlavorRecs(prevRecipes, prevFlavorRecs)).then(setFlavorRecs)
+        setRecipes(snapshotRecipes)
+        saveRecipes(snapshotRecipes).then(() => recomputeFlavorRecs(snapshotRecipes, snapshotFlavorRecs)).then(setFlavorRecs)
       })
     }
-  }, [recipes, flavorRecs, showUndo, t])
+  }, [showUndo, t])
 
   const handleCopyText = async (text) => {
     try {

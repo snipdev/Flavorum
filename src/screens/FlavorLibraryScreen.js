@@ -450,14 +450,17 @@ export default function FlavorLibraryScreen({ navigation }) {
           <View style={styles.empty}>
             <Ionicons name="search-outline" size={40} color={colors.textDim} />
             <Text style={styles.emptyText}>{t('flavors.noMatch')} "{search}"</Text>
+            <Text style={styles.emptyHint}>{t('flavors.emptySearch')}</Text>
           </View>
         }
-        ListFooterComponent={visibleCount < filtered.length ? (
-          <View style={styles.loadMoreRow}>
-            <ActivityIndicator size="small" color={colors.primaryLight} />
-            <Text style={styles.loadMoreText}>{t('flavors.loading')}</Text>
-          </View>
-        ) : null}
+        ListFooterComponent={
+          visibleCount < filtered.length ? (
+            <View style={styles.loadMoreRow}>
+              <ActivityIndicator size="small" color={colors.primaryLight} />
+              <Text style={styles.loadMoreText}>{t('flavors.loading')}</Text>
+            </View>
+          ) : null
+        }
         renderItem={({ item: f, index }) => {
           const used = f.rc > 0 || f.bc > 0
           const inStock = inventorySet.has(f.k)
@@ -871,6 +874,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   rowUnused: { fontSize: fs(13, scale), color: colors.textDim, fontStyle: 'italic' },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
   emptyText: { fontSize: fs(17, scale), color: colors.textDim },
+  emptyHint: { fontSize: fs(13, scale), color: colors.textDim, marginTop: 4, textAlign: 'center' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

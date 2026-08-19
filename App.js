@@ -138,6 +138,7 @@ function AppInner() {
   return (
     <NavigationContainer
       ref={navRef}
+      documentTitle={{ enabled: false }}
       onStateChange={() => {
         if (navRef.isReady()) setRouteName(navRef.getCurrentRoute()?.name || 'build')
       }}

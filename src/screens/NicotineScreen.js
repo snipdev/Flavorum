@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { Animated, View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Keyboard, Platform } from 'react-native'
+import { Animated, View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
@@ -25,6 +25,7 @@ const VG_PG_PRESETS = [
   { label: '70/30', pg: 30 },
   { label: '50/50', pg: 50 },
 ]
+const WIZARD_STEP_KEYS = ['build.wizardStep1', 'build.wizardStep2', 'build.wizardStep3', 'build.wizardStep4', 'build.wizardStep5']
 
 function SourceCard({ source, onUpdate, onDelete, amountInputRef }) {
   const { t } = useI18n()
@@ -101,16 +102,27 @@ export default function NicotineScreen({ navigation, route }) {
   // Wide web (viewport >= 920px) unlocks the two-column desktop layout;
   // everything below that — and all of mobile — keeps the single column.
   const { wide, desktop } = useLayoutMode()
-  const [showTop, setShowTop] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
-  const dockShadowOpacity = useShadowFade(scrolled)
+  const [wizardStep, setWizardStep] = useState(1)
+  const [pageWidth, setPageWidth] = useState(0)
+  const trackAnim = useRef(new Animated.Value(0)).current
+  const goToStep = useCallback((next) => {
+    const clamped = Math.max(1, Math.min(5, next))
+    setWizardStep(clamped)
+    Animated.timing(trackAnim, {
+      toValue: -(clamped - 1) * pageWidth,
+      duration: 240,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start()
+  }, [pageWidth, trackAnim])
+  const onPagerLayout = useCallback((e) => {
+    const w = e.nativeEvent.layout.width
+    if (w > 0 && w !== pageWidth) {
+      setPageWidth(w)
+      trackAnim.setValue(-(wizardStep - 1) * w)
+    }
+  }, [pageWidth, trackAnim, wizardStep])
+  const dockShadowOpacity = useShadowFade(false)
   const headerRef = useRef(null)
-  const handleScroll = useCallback((e) => {
-    const y = e.nativeEvent.contentOffset.y
-    headerRef.current?.handleScroll(e)
-    setScrolled(y > 4)
-    setShowTop(y > 300)
-  }, [])
   const [nicStrength, setNicStrength] = useState('100')
   const [nicBaseMode, setNicBaseMode] = useState('pg')
   const [nicCustomPg, setNicCustomPg] = useState('50')
@@ -150,10 +162,7 @@ export default function NicotineScreen({ navigation, route }) {
   useEscToClose(loadModalVisible, () => setLoadModalVisible(false))
   useEscToClose(loadBatchModalVisible, () => setLoadBatchModalVisible(false))
   const amountRefs = useRef({})
-  const scrollRef = useRef(null)
   const resultWrapRef = useRef(null)
-  const resultYRef = useRef(0)
-  const pendingScrollRef = useRef(false)
 
   useFocusEffect(
     useCallback(() => {
@@ -185,9 +194,69 @@ export default function NicotineScreen({ navigation, route }) {
 
 
   useEffect(() => {
-    setResult(null)
+    const missingSource = nicSources.find(s => !(parseFloat(s.amount) > 0))
+    if (missingSource) {
+      setWarning(t('build.warnMissingSource'))
+      setResult(null)
+      return
+    }
     setWarning(null)
-  }, [nicStrength, nicBaseMode, nicCustomPg, targetStrength, targetPg, totalVolume, mixAmount, flavorPct, ingredientMode, flavors, nicSources])
+    const vol = ingredientMode === 'mix' ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)
+    const pct = ingredientMode === 'mix'
+      ? parseFloat(flavorPct) || 0
+      : flavors.reduce((a, f) => a + (parseFloat(f.value) || 0), 0)
+    if (ingredientMode === 'mix' && pct <= 0) {
+      setWarning(t('build.warnConcentratePct'))
+      setResult(null)
+      return
+    }
+    let computedTotal = vol
+    if (ingredientMode === 'mix' && pct > 0) {
+      computedTotal = vol / (pct / 100)
+    }
+    if (!(computedTotal > 0)) {
+      setResult(null)
+      return
+    }
+    const target = parseFloat(targetStrength) || 0
+    const nicStr = parseFloat(nicStrength) || 0
+
+    const sourceNic = nicSources
+      .filter(s => parseFloat(s.amount) > 0)
+      .map(s => ({
+        volume: parseFloat(s.amount) || 0,
+        strength: parseFloat(s.strength) || 0,
+        pgRatio: parseFloat(s.baseType === 'pg' ? '100' : s.baseType === 'vg' ? '0' : s.customPg || '50'),
+      }))
+
+    const r = calculateNicotine({
+      nicStrength: nicStr,
+      nicPgRatio: parseFloat(nicPg) || 50,
+      targetStrength: target,
+      totalVolume: computedTotal,
+      flavorPct: pct,
+      targetPg: parseFloat(targetPg) || 50,
+      nicSources: sourceNic,
+    })
+    const flavorBreakdown = ingredientMode === 'flavor'
+      ? flavors
+          .filter(f => (parseFloat(f.value) || 0) > 0)
+          .map((f, i) => {
+            const ml = (computedTotal * (parseFloat(f.value) || 0)) / 100
+            return { name: f.name.trim() || t('recipes.flavorN', { i: i + 1 }), ml: Math.round(ml * 100) / 100 }
+          })
+      : []
+    const nicBreakdown = []
+    if (sourceNic.length > 0) {
+      sourceNic.forEach((s, i) => {
+        nicBreakdown.push({ name: `${t('build.source')} ${i + 1} (${s.strength} mg/ml)`, ml: Math.round(s.volume * 100) / 100 })
+      })
+    }
+    if (r.baseNicMl > 0) {
+      nicBreakdown.push({ name: `${t('build.nicStrength')} (${nicStr} mg/ml)`, ml: r.baseNicMl })
+    }
+    setResult({ ...r, flavorBreakdown, nicBreakdown })
+  }, [nicStrength, nicBaseMode, nicCustomPg, nicPg, targetStrength, targetPg, totalVolume, mixAmount, flavorPct, ingredientMode, flavors, nicSources, t])
 
   const liveWarnings = useMemo(() => {
     const w = []
@@ -321,71 +390,6 @@ export default function NicotineScreen({ navigation, route }) {
     setBatchName('')
   }
 
-  function calc() {
-    Keyboard.dismiss()
-    const missingSource = nicSources.find(s => !(parseFloat(s.amount) > 0))
-    if (missingSource) {
-      setWarning(t('build.warnMissingSource'))
-      setResult(null)
-      const input = amountRefs.current[missingSource.id]
-      if (input && typeof input.focus === 'function') input.focus()
-      return
-    }
-    setWarning(null)
-    const vol = ingredientMode === 'mix' ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)
-    const pct = ingredientMode === 'mix'
-      ? parseFloat(flavorPct) || 0
-      : flavors.reduce((a, f) => a + (parseFloat(f.value) || 0), 0)
-    if (ingredientMode === 'mix' && pct <= 0) {
-      setWarning(t('build.warnConcentratePct'))
-      setResult(null)
-      return
-    }
-    let computedTotal = vol
-    if (ingredientMode === 'mix' && pct > 0) {
-      computedTotal = vol / (pct / 100)
-    }
-    const target = parseFloat(targetStrength) || 0
-    const nicStr = parseFloat(nicStrength) || 0
-
-    const sourceNic = nicSources
-      .filter(s => parseFloat(s.amount) > 0)
-      .map(s => ({
-        volume: parseFloat(s.amount) || 0,
-        strength: parseFloat(s.strength) || 0,
-        pgRatio: parseFloat(s.baseType === 'pg' ? '100' : s.baseType === 'vg' ? '0' : s.customPg || '50'),
-      }))
-
-    const r = calculateNicotine({
-      nicStrength: nicStr,
-      nicPgRatio: parseFloat(nicPg) || 50,
-      targetStrength: target,
-      totalVolume: computedTotal,
-      flavorPct: pct,
-      targetPg: parseFloat(targetPg) || 50,
-      nicSources: sourceNic,
-    })
-    const flavorBreakdown = ingredientMode === 'flavor'
-      ? flavors
-          .filter(f => (parseFloat(f.value) || 0) > 0)
-          .map((f, i) => {
-            const ml = (computedTotal * (parseFloat(f.value) || 0)) / 100
-            return { name: f.name.trim() || t('recipes.flavorN', { i: i + 1 }), ml: Math.round(ml * 100) / 100 }
-          })
-      : []
-    const nicBreakdown = []
-    if (sourceNic.length > 0) {
-      sourceNic.forEach((s, i) => {
-        nicBreakdown.push({ name: `${t('build.source')} ${i + 1} (${s.strength} mg/ml)`, ml: Math.round(s.volume * 100) / 100 })
-      })
-    }
-    if (r.baseNicMl > 0) {
-      nicBreakdown.push({ name: `${t('build.nicStrength')} (${nicStr} mg/ml)`, ml: r.baseNicMl })
-    }
-    setResult({ ...r, flavorBreakdown, nicBreakdown })
-    pendingScrollRef.current = true
-  }
-
   const items = result ? [
     { value: result.isPossible ? t('build.readyToMix') : t('build.impossibleMix'), badge: result.isPossible ? 'success' : 'danger' },
     { label: ingredientMode === 'mix' ? t('build.concentrate') : t('build.flavorToAdd'), value: `${result.flavorMl} ml`, accent: colors.flavor },
@@ -415,32 +419,8 @@ export default function NicotineScreen({ navigation, route }) {
     <ScreenHero icon="flask" title={t('build.title')} subtitle={t('app.tagline')} subtitleNumberOfLines={2} desktop={desktop} />
   )
 
-  const formSections = (
+  const flavorFields = (
     <>
-      <View style={styles.card}>
-        <View style={styles.sectionHeader}>
-          <Ionicons name="options" size={14} color={colors.primaryLight} />
-          <Text style={styles.sectionTitle}>{t('build.ingredients')}</Text>
-        </View>
-
-        <View style={styles.ingredientTypeCard}>
-          <View style={styles.toggleRow}>
-            <TouchableOpacity style={[styles.toggle, ingredientMode === 'flavor' && styles.toggleActive]} onPress={() => setIngredientMode('flavor')} activeOpacity={0.7}>
-              <Ionicons name="leaf" size={16} color={ingredientMode === 'flavor' ? colors.primaryLight : colors.textDim} />
-              <Text style={[styles.toggleText, ingredientMode === 'flavor' && styles.toggleTextActive]}>{t('build.flavor.mode')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.toggle, ingredientMode === 'mix' && styles.toggleActive]} onPress={() => setIngredientMode('mix')} activeOpacity={0.7}>
-              <Ionicons name="flask" size={16} color={ingredientMode === 'mix' ? colors.primaryLight : colors.textDim} />
-              <Text style={[styles.toggleText, ingredientMode === 'mix' && styles.toggleTextActive]}>{t('build.mix.mode')}</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.loadBatchRow}>
-            <TouchableOpacity style={styles.loadBatchBtn} onPress={() => setLoadBatchModalVisible(true)} activeOpacity={0.7}>
-              <Ionicons name="layers-outline" size={15} color={colors.primaryLight} />
-              <Text style={styles.loadBatchBtnText}>{t('build.loadBatch')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {ingredientMode === 'mix' && (
           <View style={styles.flavorCard}>
@@ -533,8 +513,12 @@ export default function NicotineScreen({ navigation, route }) {
             {renderWarn(highFlavorWarn)}
           </View>
         )}
+    </>
+  )
 
-        <View style={styles.nicCard}>
+  const nicotineFields = (
+    <>
+      <View style={styles.nicCard}>
           <Text style={styles.nicTitle}>{t('build.nicotine')}</Text>
 
           <View style={styles.fieldGroup}>
@@ -597,13 +581,28 @@ export default function NicotineScreen({ navigation, route }) {
           <Text style={styles.addNicBtnText}>{t('build.addNicSource')}</Text>
         </TouchableOpacity>
         </View>
-      </View>
+    </>
+  )
 
-      <View style={styles.targetCard}>
-        <View style={styles.sectionHeader}>
-          <Ionicons name="options" size={14} color={colors.primaryLight} />
-          <Text style={styles.sectionTitle}>{t('build.target')}</Text>
-        </View>
+  // Wizard step 2 shows the ingredient fields without the mode picker,
+  // because step 1 already asked Flavor vs Mix (and Load Batch lives there).
+  // Nicotine moves to step 3, so step 2 only has the flavor/mix fields.
+  const wizardIngredientsSection = (
+    <View style={styles.card}>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="options" size={14} color={colors.primaryLight} />
+        <Text style={styles.sectionTitle}>{t('build.ingredients')}</Text>
+      </View>
+      {flavorFields}
+    </View>
+  )
+
+  const targetSection = (
+    <View style={styles.targetCard}>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="options" size={14} color={colors.primaryLight} />
+        <Text style={styles.sectionTitle}>{t('build.target')}</Text>
+      </View>
 
         {ingredientMode !== 'mix' && (
           <View style={styles.fieldGroup}>
@@ -641,27 +640,158 @@ export default function NicotineScreen({ navigation, route }) {
             </View>
           )}
         </View>
-      </View>
-    </>
+    </View>
   )
 
   const resultSection = (
     <View
       ref={resultWrapRef}
-      onLayout={e => {
-        resultYRef.current = e.nativeEvent.layout.y
-        // In the wide layout the result is always visible in the right column,
-        // so only the single-column layout auto-scrolls to it.
-        if (pendingScrollRef.current && items && !wide) {
-          pendingScrollRef.current = false
-          scrollRef.current?.scrollTo({ y: Math.max(resultYRef.current - 16, 0), animated: true })
-        }
-      }}
     >
-      {items && <ResultBox items={items} title={t('build.recipe')} segments={composition} totalMl={result.actualTotal} flat={wide} />}
+      {items && (
+        <ResultBox
+          items={items}
+          title={t('build.recipe')}
+          segments={composition}
+          totalMl={result.actualTotal}
+          flat={wide}
+          action={
+            <TouchableOpacity style={styles.saveResultBtn} onPress={() => { hapticLight(); setSaveModalVisible(true) }} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('build.save')}>
+              <Ionicons name="layers-outline" size={18} color={colors.primaryLight} />
+              <Text style={styles.saveResultBtnText}>{t('build.save')}</Text>
+            </TouchableOpacity>
+          }
+        />
+      )}
     </View>
   )
 
+  // Wizard step 1: "what do you want to do?" getting-started picker
+  const welcomeSection = (
+    <View style={styles.welcomeCard}>
+      <Text style={styles.welcomeTitle}>{t('build.welcomeTitle')}</Text>
+      <Text style={styles.welcomeSubtitle}>{t('build.welcomeSubtitle')}</Text>
+
+      <TouchableOpacity
+        style={[styles.welcomeOption, ingredientMode === 'flavor' && styles.welcomeOptionActive]}
+        onPress={() => { setIngredientMode('flavor'); goToStep(2) }}
+        activeOpacity={0.7}
+      >
+        <View style={styles.welcomeOptionIcon}>
+          <Ionicons name="leaf" size={22} color={colors.success} />
+        </View>
+        <View style={styles.welcomeOptionInfo}>
+          <Text style={styles.welcomeOptionTitle}>{t('build.welcomeFlavorTitle')}</Text>
+          <Text style={styles.welcomeOptionDesc}>{t('build.welcomeFlavorDesc')}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.welcomeOption, ingredientMode === 'mix' && styles.welcomeOptionActive]}
+        onPress={() => { setIngredientMode('mix'); goToStep(2) }}
+        activeOpacity={0.7}
+      >
+        <View style={styles.welcomeOptionIcon}>
+          <Ionicons name="flask" size={22} color={colors.primaryLight} />
+        </View>
+        <View style={styles.welcomeOptionInfo}>
+          <Text style={styles.welcomeOptionTitle}>{t('build.welcomeMixTitle')}</Text>
+          <Text style={styles.welcomeOptionDesc}>{t('build.welcomeMixDesc')}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.welcomeLoadBtn} onPress={() => setLoadBatchModalVisible(true)} activeOpacity={0.7}>
+        <Ionicons name="layers-outline" size={16} color={colors.primaryLight} />
+        <Text style={styles.welcomeLoadBtnText}>{t('build.loadBatch')}</Text>
+      </TouchableOpacity>
+    </View>
+  )
+
+  // Wizard progress indicator: number circles with labels underneath.
+  const wizardProgress = (
+    <View style={[styles.wizardProgress, wide && styles.pagerWide]}>
+      {[1, 2, 3, 4, 5].map(step => (
+        <View key={step} style={styles.wizardStep}>
+          <View style={styles.wizardStepCircleRow}>
+            {step > 1 && <View style={[styles.wizardStepLine, wizardStep >= step && styles.wizardStepLineActive]} />}
+            <TouchableOpacity
+              style={[
+                styles.wizardStepCircle,
+                wizardStep >= step && styles.wizardStepCircleActive,
+                wizardStep === step && styles.wizardStepCircleCurrent,
+              ]}
+              onPress={() => goToStep(step)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+            >
+              <Text style={[
+                styles.wizardStepNum,
+                wizardStep >= step && styles.wizardStepNumActive,
+              ]}>{step}</Text>
+            </TouchableOpacity>
+            {step < 5 && <View style={[styles.wizardStepLine, wizardStep > step && styles.wizardStepLineActive]} />}
+          </View>
+          <TouchableOpacity onPress={() => goToStep(step)} activeOpacity={0.7} accessibilityRole="button" style={styles.wizardStepLabelWrap}>
+            <Text style={[
+              styles.wizardStepLabel,
+              wizardStep === step && styles.wizardStepLabelActive,
+            ]} numberOfLines={2}>
+              {t(WIZARD_STEP_KEYS[step - 1])}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  )
+
+  // Wizard horizontal pager: each step is a full-width page that slides in
+  // horizontally. A page only scrolls vertically if its content overflows.
+  // Round arrows float at the vertical middle of the card on each side.
+  const wizardPager = (
+    <View style={styles.wizardStage}>
+      <View style={styles.wizardStageContent}>
+        <View style={styles.pager} onLayout={onPagerLayout}>
+          <Animated.View style={[styles.pagerTrack, { transform: [{ translateX: trackAnim }] }]}>
+            {[
+              <ScrollView key={1} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
+                {welcomeSection}
+              </ScrollView>,
+              <ScrollView key={2} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
+                {wizardIngredientsSection}
+              </ScrollView>,
+              <ScrollView key={3} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
+                {nicotineFields}
+              </ScrollView>,
+              <ScrollView key={4} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
+                {targetSection}
+              </ScrollView>,
+              <ScrollView key={5} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
+                {resultSection}
+                {!items && (
+                  <View style={styles.wizardResultEmpty}>
+                    <Ionicons name="flask-outline" size={30} color={colors.primary + '80'} />
+                    <Text style={styles.wideEmptyTitle}>{t('build.wideEmptyTitle')}</Text>
+                    <Text style={styles.wideEmptyText}>{t('build.wideEmptyText')}</Text>
+                  </View>
+                )}
+              </ScrollView>,
+            ]}
+          </Animated.View>
+        </View>
+      </View>
+      {wizardStep > 1 && (
+        <TouchableOpacity style={[styles.wizardFloatArrow, styles.wizardFloatArrowLeft]} onPress={() => goToStep(wizardStep - 1)} activeOpacity={0.8} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+          <Ionicons name="chevron-back" size={24} color={colors.primaryLight} />
+        </TouchableOpacity>
+      )}
+      {wizardStep < 5 && (
+        <TouchableOpacity style={[styles.wizardFloatArrow, styles.wizardFloatArrowRight]} onPress={() => goToStep(wizardStep + 1)} activeOpacity={0.8} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} accessibilityRole="button" accessibilityLabel={t('common.next')}>
+          <Ionicons name="chevron-forward" size={24} color={colors.primaryLight} />
+        </TouchableOpacity>
+      )}
+    </View>
+  )
   const dock = (
     <View style={styles.bottomDock}>
       <Animated.View pointerEvents="none" style={[styles.dockShadowLayer, { opacity: dockShadowOpacity }]} />
@@ -690,16 +820,6 @@ export default function NicotineScreen({ navigation, route }) {
           </View>
         </View>
       </View>
-      <View style={[styles.stickyBar, desktop && styles.stickyBarWide]}>
-        <TouchableOpacity style={styles.saveBatchBtn} onPress={() => { hapticLight(); setSaveModalVisible(true) }} activeOpacity={0.8} hitSlop={{ top: 4, bottom: 4 }}>
-          <Ionicons name="layers-outline" size={18} color={colors.primaryLight} />
-          <Text style={styles.saveBatchBtnText}>{t('build.save')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.calcBtn} onPress={() => { hapticLight(); calc() }} activeOpacity={0.9} hitSlop={{ top: 4, bottom: 4 }}>
-          <Ionicons name="calculator" size={18} color="#fff" />
-          <Text style={styles.calcBtnText}>{t('build.calculate')}</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   )
 
@@ -712,72 +832,20 @@ export default function NicotineScreen({ navigation, route }) {
         {wide ? (
           <>
             <StickyHeader ref={headerRef}>{heroBlock}</StickyHeader>
-            <View style={styles.wideBody}>
-            <ScrollView
-              ref={scrollRef}
-              style={styles.wideLeft}
-              contentContainerStyle={styles.wideLeftContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-            >
-              {formSections}
-            </ScrollView>
-            <View style={styles.wideRight}>
-            <ScrollView
-              style={styles.wideRightScroll}
-              contentContainerStyle={styles.wideRightContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-            >
-                {resultSection}
-                {!items && (
-                  <View style={styles.wideEmpty}>
-                    <Ionicons name="flask-outline" size={30} color={colors.primary + '80'} />
-                    <Text style={styles.wideEmptyTitle}>{t('build.wideEmptyTitle')}</Text>
-                    <Text style={styles.wideEmptyText}>{t('build.wideEmptyText')}</Text>
-                  </View>
-                )}
-              </ScrollView>
+            <View style={styles.wizardBody}>
+              {wizardProgress}
+              {wizardPager}
             </View>
-            </View>
-            {/* Desktop: the Save/Calculate dock spans the full content width
-                below the two columns — never wider than the wrapper, so it
-                stays aligned with the content (mobile keeps full width). */}
             {dock}
           </>
         ) : (
           <>
             <StickyHeader ref={headerRef}>{heroBlock}</StickyHeader>
-            <ScrollView
-              ref={scrollRef}
-              style={styles.scroll}
-              contentContainerStyle={styles.content}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-            >
-              {formSections}
-              {resultSection}
-            </ScrollView>
+            <View style={styles.wizardBody}>
+              {wizardProgress}
+              {wizardPager}
+            </View>
             {dock}
-            {showTop && (
-              <TouchableOpacity
-                style={styles.topBtn}
-                onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={t('build.backToTop')}
-              >
-                <Ionicons name="arrow-up" size={22} color="#fff" />
-              </TouchableOpacity>
-            )}
           </>
         )}
       </KeyboardAvoidingView>
@@ -928,6 +996,118 @@ export default function NicotineScreen({ navigation, route }) {
 
 const createStyles = (colors, scale = 1) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
+  // Wizard styles
+  wizardProgress: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.sm },
+  wizardStep: { flex: 1, alignItems: 'center' },
+  wizardStepCircleRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+  wizardStepCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.inputBg,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wizardStepCircleActive: { borderColor: colors.primary, backgroundColor: colors.primary + '26' },
+  wizardStepCircleCurrent: { borderColor: colors.primaryLight, backgroundColor: colors.primary },
+  wizardStepNum: { fontSize: fs(12, scale), fontWeight: '700', color: colors.textDim },
+  wizardStepNumActive: { color: colors.primaryLight },
+  wizardStepLabelWrap: { marginTop: 4, paddingHorizontal: 2 },
+  wizardStepLabel: { fontSize: fs(10, scale), color: colors.textDim, fontWeight: '600', textAlign: 'center' },
+  wizardStepLabelActive: { color: colors.primaryLight },
+  wizardStepLine: { height: 2, flex: 1, backgroundColor: colors.border, marginHorizontal: 2, borderRadius: 1 },
+  wizardStepLineActive: { backgroundColor: colors.primary },
+  welcomeCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: spacing.lg,
+  },
+  welcomeTitle: { fontSize: fs(22, scale), fontWeight: '800', color: colors.text, marginBottom: 6 },
+  welcomeSubtitle: { fontSize: fs(14, scale), color: colors.textDim, lineHeight: 20, marginBottom: spacing.lg },
+  welcomeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: spacing.md,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.inputBg,
+    marginBottom: spacing.sm,
+  },
+  welcomeOptionActive: { borderColor: colors.primary, backgroundColor: colors.primary + '14' },
+  welcomeOptionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary + '1A',
+  },
+  welcomeOptionInfo: { flex: 1 },
+  welcomeOptionTitle: { fontSize: fs(16, scale), fontWeight: '700', color: colors.textMuted, marginBottom: 2 },
+  welcomeOptionDesc: { fontSize: fs(12, scale), color: colors.textDim, lineHeight: 17 },
+  welcomeLoadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.primary + '4D',
+    marginTop: spacing.xs,
+  },
+  welcomeLoadBtnText: { fontSize: fs(14, scale), color: colors.primaryLight, fontWeight: '600' },
+  wizardBody: { flex: 1 },
+  wizardStage: { flex: 1 },
+  wizardStageContent: {
+    flex: 1,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 608,
+    paddingHorizontal: 40,
+  },
+  wizardFloatArrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.primary + '4D',
+    backgroundColor: colors.inputBg,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  wizardFloatArrowLeft: { left: 6 },
+  wizardFloatArrowRight: { right: 6 },
+  pager: { flex: 1, overflow: 'hidden' },
+  pagerWide: { alignSelf: 'center', width: '100%', maxWidth: 520 },
+  pagerTrack: { flexDirection: 'row', flex: 1, alignItems: 'stretch' },
+  pagerPage: { flexShrink: 0 },
+  pagerContent: { paddingHorizontal: 14, paddingTop: spacing.xs, paddingBottom: 24 },
+  wizardResultEmpty: {
+    alignItems: 'center',
+    gap: 10,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    backgroundColor: colors.card,
+  },
   kav: { flex: 1 },
   scroll: { flex: 1 },
   content: { paddingTop: spacing.lg, paddingHorizontal: 14, paddingBottom: 48 },
@@ -1148,45 +1328,18 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   summaryValue: { fontSize: fs(12, scale), fontWeight: '700', color: colors.primaryLight },
   summaryDivider: { width: 1, height: 18, backgroundColor: colors.primary + '1F' },
-  stickyBar: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.bg,
-  },
-  // Desktop (sidebar present): the dock spans the content width, but the
-  // buttons themselves stay a comfortable size, centered in the bar.
-  stickyBarWide: {
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 440,
-  },
-  calcBtn: {
-    flex: 1.6,
-    backgroundColor: colors.primary,
+  saveResultBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  calcBtnText: { fontSize: fs(16, scale), fontWeight: '700', color: '#fff' },
-  saveBatchBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 13,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: colors.primary + '4D',
     backgroundColor: colors.primary + '0F',
   },
-  saveBatchBtnText: { fontSize: fs(15, scale), fontWeight: '600', color: colors.primaryLight },
+  saveResultBtnText: { fontSize: fs(15, scale), fontWeight: '600', color: colors.primaryLight },
   topBtn: {
     position: 'absolute',
     right: 20,

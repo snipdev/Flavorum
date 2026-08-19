@@ -51,6 +51,8 @@ export default function PricesScreen({ navigation, route }) {
   }, [route?.params?.prefillFlavor, navigation])
 
   const [prices, setPrices] = useState([])
+  const pricesRef = useRef(prices)
+  useEffect(() => { pricesRef.current = prices }, [prices])
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [price, setPrice] = useState('')
@@ -129,9 +131,9 @@ export default function PricesScreen({ navigation, route }) {
   }
 
   const remove = async (id) => {
-    const prev = prices
-    const target = prices.find(p => p.id === id)
-    const next = prices.filter(p => p.id !== id)
+    const snapshot = pricesRef.current
+    const target = snapshot.find(p => p.id === id)
+    const next = snapshot.filter(p => p.id !== id)
     setPrices(next)
     setConfirmId(null)
     await savePrices(next)
@@ -139,8 +141,8 @@ export default function PricesScreen({ navigation, route }) {
     hapticLight()
     if (target) {
       showUndo(t('prices.undoDeleteMsg'), () => {
-        setPrices(prev)
-        savePrices(prev)
+        setPrices(snapshot)
+        savePrices(snapshot)
         setLastSavedAt(Date.now())
       })
     }

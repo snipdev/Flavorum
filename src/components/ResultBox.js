@@ -5,7 +5,7 @@ import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 import BottleSVG from './BottleSVG'
 
-export default function ResultBox({ items, title, segments = [], totalMl, flat }) {
+export default function ResultBox({ items, title, segments = [], totalMl, flat, action }) {
   const { t } = useI18n()
   const { theme, textScale } = useTheme()
   const colors = theme
@@ -61,6 +61,8 @@ export default function ResultBox({ items, title, segments = [], totalMl, flat }
           </Text>
         </View>
       ))}
+
+      {action != null && <View style={styles.footerAction}>{action}</View>}
     </View>
   )
 }
@@ -130,4 +132,10 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   subValue: { fontSize: fs(15, scale), color: colors.textMuted, fontWeight: '500' },
   totalLabel: { fontSize: fs(16, scale), fontWeight: '700', color: colors.text },
   totalValue: { fontSize: fs(22, scale), fontWeight: '700', color: colors.primaryLight },
+  footerAction: {
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.primary + '1F',
+  },
 })

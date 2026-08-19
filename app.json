@@ -20,7 +20,7 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/flavorum.png"
     },
     "extra": {
       "eas": {
