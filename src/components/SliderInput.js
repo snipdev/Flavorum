@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native'
 import Slider from '@react-native-community/slider'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing } from '../theme'
+import { fs, spacing, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 
@@ -104,7 +104,7 @@ export default function SliderInput({ label, value, onChangeText, min = 0, max =
 
 const createStyles = (colors, scale = 1) => StyleSheet.create({
   container: { marginBottom: spacing.md },
-  label: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted, marginBottom: 6, letterSpacing: 0.3 },
+  label: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted, marginBottom: 6, letterSpacing: 0.3 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -162,7 +162,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 6,
     marginRight: 6,
   },
-  suffix: { fontSize: fs(15, scale), color: colors.primaryLight, fontWeight: '500' },
+  suffix: { fontSize: fs(15, scale), color: colors.primaryLight, ...font('500') },
   slider: { width: '100%', height: 36, marginTop: 2 },
   rangeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -6 },
   rangeText: { fontSize: fs(14, scale), color: colors.textMuted },

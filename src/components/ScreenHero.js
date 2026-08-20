@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing } from '../theme'
+import { fs, spacing, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import ThemeToggle from './ThemeToggle'
 import LangToggle from './LangToggle'
+import FontToggle from './FontToggle'
 
 /**
  * Shared screen header (hero) block used by every tab screen. On desktop the
@@ -35,6 +36,7 @@ export default function ScreenHero({ icon, title, subtitle, subtitleNumberOfLine
       {!desktop && (
         <View style={styles.heroRight}>
           <ThemeToggle />
+          <FontToggle />
           <LangToggle />
         </View>
       )}
@@ -55,7 +57,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: fs(23, scale), fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
+  title: { fontSize: fs(23, scale), ...font('700'), color: colors.text, letterSpacing: -0.5 },
   titleDesktop: { fontSize: fs(18, scale) },
   subtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
 })

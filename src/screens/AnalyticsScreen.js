@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Clipboard from 'expo-clipboard'
 import Svg, { Circle } from 'react-native-svg'
-import { fs, spacing, isWeb, useLayoutMode } from '../theme'
+import { fs, spacing, isWeb, useLayoutMode, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 import StickyHeader from '../components/StickyHeader'
@@ -48,7 +48,7 @@ function UsageDonut({ recipeUses, batchUses, size = 148, stroke = 18, colors, us
         )}
       </Svg>
       <View style={{ position: 'absolute', alignItems: 'center' }}>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{total}</Text>
+        <Text style={{ fontSize: 20, ...font('700'), color: colors.text }}>{total}</Text>
         <Text style={{ fontSize: 11, color: colors.textDim }}>{usesLabel}</Text>
       </View>
     </View>
@@ -398,8 +398,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.primary + '4D',
     backgroundColor: colors.primary + '14',
   },
-  dataBtnText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.primaryLight },
-  dataMsg: { fontSize: fs(12, scale), color: colors.success, marginTop: spacing.sm, fontWeight: '600' },
+  dataBtnText: { fontSize: fs(13, scale), ...font('600'), color: colors.primaryLight },
+  dataMsg: { fontSize: fs(12, scale), color: colors.success, marginTop: spacing.sm, ...font('600') },
   summaryRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   summaryCard: {
     flex: 1,
@@ -411,8 +411,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  summaryNum: { fontSize: fs(22, scale), fontWeight: '700', color: colors.text },
-  summaryLabel: { fontSize: fs(13, scale), color: colors.textMuted, fontWeight: '500', textAlign: 'center' },
+  summaryNum: { fontSize: fs(22, scale), ...font('700'), color: colors.text },
+  summaryLabel: { fontSize: fs(13, scale), color: colors.textMuted, ...font('500'), textAlign: 'center' },
 
   card: {
     backgroundColor: colors.card,
@@ -423,7 +423,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md },
-  sectionTitle: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  sectionTitle: { fontSize: fs(15, scale), ...font('700'), color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -432,10 +432,10 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 10,
   },
-  exportBtnText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.primaryLight },
+  exportBtnText: { fontSize: fs(13, scale), ...font('600'), color: colors.primaryLight },
   noData: { color: colors.textDim, textAlign: 'center', paddingVertical: 24 },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
-  emptyStateTitle: { fontSize: fs(17, scale), fontWeight: '600', color: colors.textMuted },
+  emptyStateTitle: { fontSize: fs(17, scale), ...font('600'), color: colors.textMuted },
   emptyStateHint: { fontSize: fs(13, scale), color: colors.textDim, textAlign: 'center' },
 
   // Charts row: stacked on narrow, side by side on wide web.
@@ -451,7 +451,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendDot: { width: 12, height: 12, borderRadius: 6 },
   legendText: { flex: 1, fontSize: fs(14, scale), color: colors.textMuted },
-  legendValue: { fontSize: fs(15, scale), fontWeight: '700', color: colors.text },
+  legendValue: { fontSize: fs(15, scale), ...font('700'), color: colors.text },
   legendHint: { fontSize: fs(12, scale), color: colors.textDim, maxWidth: 150, marginTop: 2 },
 
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },

@@ -1,17 +1,20 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { themeVariants } from './theme'
+import { FONT_OPTIONS, setActiveFontKey } from './fonts'
 import { auditAllThemes, AA_NORMAL, AA_LARGE } from './utils/contrast'
 
 const THEME_KEY = 'flavorum_theme'
 const TEXT_SCALE_KEY = 'flavorum_textScale'
+const FONT_KEY = 'flavorum_font'
 export const TEXT_SCALE_PRESETS = [0.9, 1.0, 1.15, 1.3]
 
 const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
-  const [key, setKey] = useState('ember')
+  const [key, setKey] = useState('emberLight')
   const [textScale, setTextScaleState] = useState(1.0)
+  const [fontKey, setFontKeyState] = useState('system')
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -48,6 +51,12 @@ export function ThemeProvider({ children }) {
     }).catch(() => {})
   }, [])
 
+  useEffect(() => {
+    AsyncStorage.getItem(FONT_KEY).then(saved => {
+      if (saved && FONT_OPTIONS.some(o => o.key === saved)) setFontKeyState(saved)
+    }).catch(() => {})
+  }, [])
+
   const setTheme = (next) => {
     if (!themeVariants[next]) return
     setKey(next)
@@ -60,8 +69,19 @@ export function ThemeProvider({ children }) {
     AsyncStorage.setItem(TEXT_SCALE_KEY, String(next)).catch(() => {})
   }
 
+  const setFontKey = (next) => {
+    if (!FONT_OPTIONS.some(o => o.key === next)) return
+    setFontKeyState(next)
+    AsyncStorage.setItem(FONT_KEY, next).catch(() => {})
+  }
+
+  // Keep the module-level active font in sync *before* children render so the
+  // global font() helper used inside every createStyles() resolves the new
+  // typeface on the same paint (no flash of the previous font).
+  setActiveFontKey(fontKey)
+
   return (
-    <ThemeContext.Provider value={{ key, ready, setTheme, theme: themeVariants[key], textScale, setTextScale }}>
+    <ThemeContext.Provider value={{ key, ready, setTheme, theme: themeVariants[key], textScale, setTextScale, fontKey, setFontKey }}>
       {children}
     </ThemeContext.Provider>
   )

@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import Slider from '@react-native-community/slider'
-import { fs, spacing } from '../theme'
+import { fs, spacing, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 
@@ -57,11 +57,11 @@ function BalanceText({ vg, pg, pgColor, colors, center, scale }) {
 const createStyles = (colors, scale = 1) => StyleSheet.create({
   container: { marginBottom: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  label: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted, letterSpacing: 0.3 },
+  label: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted, letterSpacing: 0.3 },
   slider: { width: '100%', height: 36 },
   balanceText: { flexDirection: 'row', alignItems: 'center' },
   balanceCenter: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center' },
-  pgText: { fontSize: fs(15, scale), fontWeight: '700' },
-  vgText: { fontSize: fs(15, scale), fontWeight: '700' },
+  pgText: { fontSize: fs(15, scale), ...font('700') },
+  vgText: { fontSize: fs(15, scale), ...font('700') },
   sep: { fontSize: fs(14, scale) },
 })

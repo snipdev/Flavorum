@@ -8,6 +8,7 @@ import * as NavigationBar from 'expo-navigation-bar'
 import { useFonts } from 'expo-font'
 import { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { FONT_ASSETS } from './src/fonts'
 import NicotineScreen from './src/screens/NicotineScreen'
 import BatchScreen from './src/screens/BatchScreen'
 import RecipesScreen from './src/screens/RecipesScreen'
@@ -17,7 +18,8 @@ import PricesScreen from './src/screens/PricesScreen'
 import { ThemeProvider, useTheme } from './src/ThemeContext'
 import ThemeToggle from './src/components/ThemeToggle'
 import LangToggle from './src/components/LangToggle'
-import { webMaxWidth, wideWebMaxWidth, sidebarWebWidth, isWeb, useLayoutMode } from './src/theme'
+import FontToggle from './src/components/FontToggle'
+import { webMaxWidth, wideWebMaxWidth, sidebarWebWidth, isWeb, useLayoutMode, font } from './src/theme'
 import { LanguageProvider, useI18n } from './src/i18n'
 import { hapticLight } from './src/utils/haptics'
 
@@ -35,6 +37,7 @@ const tabs = [
 export default function App() {
   const [fontsLoaded] = useFonts({
     Ionicons: require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
+    ...FONT_ASSETS,
   })
 
   return (
@@ -230,6 +233,7 @@ function DesktopSidebar({ routeName, state, navigation }) {
 
       <View style={styles.sidebarFooter}>
         <ThemeToggle />
+        <FontToggle />
         <LangToggle />
       </View>
     </View>
@@ -398,7 +402,7 @@ function TabNavigator() {
           return <Ionicons name={tab?.icon} size={22} color={color} />
         },
         tabBarLabel: t(`tab.${route.name}`),
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', marginTop: 1 },
+        tabBarLabelStyle: { fontSize: 10, ...font('600'), marginTop: 1 },
         tabBarItemStyle: { borderRadius: 12, marginHorizontal: 6, marginVertical: 6 },
         tabBarActiveBackgroundColor: theme.primary + '26',
         tabBarIconStyle: { marginTop: 2 },
@@ -429,7 +433,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   sidebarBrand: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 6 },
   sidebarLogo: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F3EDE1', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', padding: 4 },
-  sidebarBrandText: { fontSize: 17, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
+  sidebarBrandText: { fontSize: 17, ...font('800'), color: colors.text, letterSpacing: -0.3 },
   sidebarNav: { flex: 1, gap: 3 },
   sidebarItem: {
     flexDirection: 'row',
@@ -440,7 +444,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 10,
   },
   sidebarItemActive: { backgroundColor: colors.primary + '26' },
-  sidebarItemText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+  sidebarItemText: { fontSize: 14, ...font('600'), color: colors.textMuted },
   sidebarItemTextActive: { color: colors.primaryLight },
   sidebarFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 },
   mobileTabBar: {
@@ -494,7 +498,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginHorizontal: 3,
     paddingHorizontal: 4,
   },
-  mobileTabLabel: { fontSize: 10, fontWeight: '600', marginTop: 1 },
+  mobileTabLabel: { fontSize: 10, ...font('600'), marginTop: 1 },
 })
 
 const styles = StyleSheet.create({

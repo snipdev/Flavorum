@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing } from '../theme'
+import { fs, spacing, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 import BottleSVG from './BottleSVG'
@@ -80,7 +80,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   // card must not add its own top margin (single-column keeps it).
   wrapperFlat: { marginTop: 0 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: spacing.md },
-  title: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  title: { fontSize: fs(15, scale), ...font('700'), color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   headerLine: { flex: 1, height: 1, backgroundColor: colors.cardBorder },
   badge: {
     flexDirection: 'row',
@@ -94,7 +94,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   badgeDot: { width: 8, height: 8, borderRadius: 4 },
-  badgeText: { fontSize: fs(15, scale), fontWeight: '700' },
+  badgeText: { fontSize: fs(15, scale), ...font('700') },
   composition: { marginBottom: spacing.md },
   bottleRow: {
     flexDirection: 'row',
@@ -109,7 +109,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendLabel: { fontSize: fs(13, scale), color: colors.textMuted },
-  legendPct: { fontSize: fs(13, scale), fontWeight: '600', color: colors.text },
+  legendPct: { fontSize: fs(13, scale), ...font('600'), color: colors.text },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -127,11 +127,11 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   subRow: { paddingLeft: 24, paddingVertical: 6 },
   bullet: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   label: { flex: 1, fontSize: fs(16, scale), color: colors.textMuted },
-  value: { fontSize: fs(19, scale), fontWeight: '600', color: colors.text },
+  value: { fontSize: fs(19, scale), ...font('600'), color: colors.text },
   subLabel: { fontSize: fs(15, scale), color: colors.textMuted },
-  subValue: { fontSize: fs(15, scale), color: colors.textMuted, fontWeight: '500' },
-  totalLabel: { fontSize: fs(16, scale), fontWeight: '700', color: colors.text },
-  totalValue: { fontSize: fs(22, scale), fontWeight: '700', color: colors.primaryLight },
+  subValue: { fontSize: fs(15, scale), color: colors.textMuted, ...font('500') },
+  totalLabel: { fontSize: fs(16, scale), ...font('700'), color: colors.text },
+  totalValue: { fontSize: fs(22, scale), ...font('700'), color: colors.primaryLight },
   footerAction: {
     marginTop: spacing.lg,
     paddingTop: spacing.lg,

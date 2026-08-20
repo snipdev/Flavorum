@@ -365,6 +365,14 @@ export const translations = {
     'theme.preview': 'Preview',
     'theme.textSize': 'Text size',
     'theme.lowContrast': 'Low contrast',
+
+    // Font picker
+    'font.title': 'Font',
+    'font.subtitle': 'Pick a typeface — applies instantly',
+    'font.sample': 'Banana Cream 6% · Vanilla Bean 2%',
+    'font.sampleLong': 'This is how your mixes, recipes and stats will read.',
+    'font.preview': 'Preview',
+    'font.done': 'Done',
   },
   tr: {
     'app.tagline': 'Mükemmel karışımınızı hesaplayın',
@@ -725,6 +733,14 @@ export const translations = {
     'theme.preview': 'Önizleme',
     'theme.textSize': 'Metin boyutu',
     'theme.lowContrast': 'Düşük kontrast',
+
+    // Font picker
+    'font.title': 'Yazı Tipi',
+    'font.subtitle': 'Bir yazı tipi seç — anında uygulanır',
+    'font.sample': 'Muz Kremi %6 · Vanilya %2',
+    'font.sampleLong': 'Karışımlarınız, tarifleriniz ve istatistikleriniz böyle görünecek.',
+    'font.preview': 'Önizleme',
+    'font.done': 'Tamam',
   },
 }
 

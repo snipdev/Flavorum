@@ -3,7 +3,7 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, Platform
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing, useLayoutMode } from '../theme'
+import { fs, spacing, useLayoutMode, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { loadRecipes, loadBatches, saveRecipes, saveBatches, loadCustomFlavors, saveCustomFlavors, loadInventory, saveInventory, loadInventoryMeta, saveInventoryMeta, loadFlavorRecs, saveFlavorRecs, recomputeFlavorRecs, getRecValue, formatRecValues, findRec } from '../utils/recipes'
 import { useUndo } from '../utils/useUndo'
@@ -768,7 +768,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.primaryLight,
     backgroundColor: colors.primary + '22',
   },
-  brandChipText: { fontSize: fs(12, scale), fontWeight: '600', color: colors.textMuted },
+  brandChipText: { fontSize: fs(12, scale), ...font('600'), color: colors.textMuted },
   brandChipTextActive: { color: colors.primaryLight },
   filterTabs: { flexDirection: 'row', gap: 8, marginTop: 10 },
   filterTab: {
@@ -785,7 +785,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   filterTabActive: { borderColor: colors.primaryLight, backgroundColor: colors.primary + '20' },
-  filterTabText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.textMuted },
+  filterTabText: { fontSize: fs(13, scale), ...font('600'), color: colors.textMuted },
   filterTabTextActive: { color: colors.primaryLight },
   stockToggleBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -12, paddingRight: 4 },
   brandPill: {
@@ -796,10 +796,10 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 4,
   },
-  brandPillText: { fontSize: fs(12, scale), fontWeight: '700', color: colors.primaryLight },
+  brandPillText: { fontSize: fs(12, scale), ...font('700'), color: colors.primaryLight },
 
   sortRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.md },
-  resultCount: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500', marginTop: -spacing.xs, marginBottom: spacing.sm, paddingHorizontal: 2 },
+  resultCount: { fontSize: fs(13, scale), color: colors.textDim, ...font('500'), marginTop: -spacing.xs, marginBottom: spacing.sm, paddingHorizontal: 2 },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -812,7 +812,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.success + '66',
     backgroundColor: colors.success + '1A',
   },
-  addBtnText: { fontSize: fs(13, scale), fontWeight: '700', color: colors.success },
+  addBtnText: { fontSize: fs(13, scale), ...font('700'), color: colors.success },
   sortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -825,7 +825,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.inputBg,
   },
-  sortLabel: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '600' },
+  sortLabel: { fontSize: fs(13, scale), color: colors.textDim, ...font('600') },
   sortBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -836,7 +836,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   sortBadgeActive: { backgroundColor: colors.primary },
-  sortBadgeText: { fontSize: fs(12, scale), fontWeight: '700', color: colors.textMuted },
+  sortBadgeText: { fontSize: fs(12, scale), ...font('700'), color: colors.textMuted },
   sortBadgeTextActive: { color: '#fff' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.primary + '14' },
@@ -856,10 +856,10 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   rowTextWrap: { flex: 1, flexDirection: 'column', gap: 5, minWidth: 0 },
   rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 },
   rowMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 },
-  rowName: { flexShrink: 1, fontSize: fs(15, scale), color: colors.text, fontWeight: '500', minWidth: 0 },
+  rowName: { flexShrink: 1, fontSize: fs(15, scale), color: colors.text, ...font('500'), minWidth: 0 },
   rowLocal: {
     fontSize: fs(12, scale),
-    fontWeight: '700',
+    ...font('700'),
     color: colors.success,
     textTransform: 'uppercase',
     backgroundColor: colors.success + '26',
@@ -870,7 +870,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   rowCounts: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
   countBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.inputBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  countText: { fontSize: fs(13, scale), color: colors.textMuted, fontWeight: '600' },
+  countText: { fontSize: fs(13, scale), color: colors.textMuted, ...font('600') },
   rowUnused: { fontSize: fs(13, scale), color: colors.textDim, fontStyle: 'italic' },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
   emptyText: { fontSize: fs(17, scale), color: colors.textDim },
@@ -897,14 +897,14 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   modalContent: { position: 'relative', zIndex: 2 },
   modalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.md },
   modalTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  modalTitle: { flex: 1, fontSize: fs(18, scale), fontWeight: '600', color: colors.text },
+  modalTitle: { flex: 1, fontSize: fs(18, scale), ...font('600'), color: colors.text },
   modalBody: { maxHeight: 320, marginBottom: spacing.md },
-  modalSectionTitle: { fontSize: fs(12, scale), color: colors.textDim, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 },
+  modalSectionTitle: { fontSize: fs(12, scale), color: colors.textDim, ...font('700'), letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 },
   modalSectionSpaced: { marginTop: spacing.md },
   modalEmptyText: { fontSize: fs(14, scale), color: colors.textDim, marginBottom: spacing.sm },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.primary + '14' },
   detailRowText: { flex: 1 },
-  detailRowName: { fontSize: fs(15, scale), color: colors.text, fontWeight: '500' },
+  detailRowName: { fontSize: fs(15, scale), color: colors.text, ...font('500') },
   detailRowMeta: { fontSize: fs(13, scale), color: colors.textDim, marginTop: 1 },
   prepareBtn: {
     flexDirection: 'row',
@@ -918,7 +918,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  prepareBtnText: { fontSize: fs(12, scale), fontWeight: '700', color: colors.success },
+  prepareBtnText: { fontSize: fs(12, scale), ...font('700'), color: colors.success },
   modalBtn: {
     backgroundColor: colors.primary,
     alignItems: 'center',
@@ -926,7 +926,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
   },
-  modalBtnText: { fontSize: fs(15, scale), fontWeight: '700', color: '#fff' },
+  modalBtnText: { fontSize: fs(15, scale), ...font('700'), color: '#fff' },
   addInput: {
     backgroundColor: colors.inputBg,
     borderWidth: 1.5,
@@ -943,9 +943,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   addActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
   addBtnModal: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
   addBtnModalCancel: { backgroundColor: 'rgba(148, 163, 184, 0.1)', borderWidth: 1.5, borderColor: colors.border },
-  addBtnModalTextCancel: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted },
+  addBtnModalTextCancel: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted },
   addBtnModalConfirm: { backgroundColor: colors.success },
-  addBtnModalTextConfirm: { fontSize: fs(15, scale), fontWeight: '700', color: '#fff' },
+  addBtnModalTextConfirm: { fontSize: fs(15, scale), ...font('700'), color: '#fff' },
 
   stockMetaPill: {
     backgroundColor: colors.success + '1F',
@@ -955,7 +955,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 4,
   },
-  stockMetaPillText: { fontSize: fs(12, scale), fontWeight: '700', color: colors.success },
+  stockMetaPillText: { fontSize: fs(12, scale), ...font('700'), color: colors.success },
   recBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -966,9 +966,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingVertical: 2,
     flexShrink: 1,
   },
-  recBadgeText: { fontSize: fs(12, scale), fontWeight: '800', color: '#fff' },
-  stockFlavorName: { fontSize: fs(15, scale), fontWeight: '700', color: colors.primaryLight, marginBottom: spacing.sm },
-  stockLabel: { fontSize: fs(13, scale), fontWeight: '600', color: colors.textMuted, marginBottom: 6, marginTop: spacing.xs },
+  recBadgeText: { fontSize: fs(12, scale), ...font('800'), color: '#fff' },
+  stockFlavorName: { fontSize: fs(15, scale), ...font('700'), color: colors.primaryLight, marginBottom: spacing.sm },
+  stockLabel: { fontSize: fs(13, scale), ...font('600'), color: colors.textMuted, marginBottom: 6, marginTop: spacing.xs },
   stockInput: {
     backgroundColor: colors.inputBg,
     borderWidth: 1.5,
@@ -981,7 +981,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     },
   stockModalActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   removeStockBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: colors.danger + '44', backgroundColor: colors.danger + '14' },
-  removeStockText: { color: colors.danger, fontWeight: '600', fontSize: fs(13, scale) },
+  removeStockText: { color: colors.danger, ...font('600'), fontSize: fs(13, scale) },
   saveStockBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: colors.primary },
-  saveStockText: { color: '#fff', fontWeight: '700', fontSize: fs(14, scale) },
+  saveStockText: { color: '#fff', ...font('700'), fontSize: fs(14, scale) },
 })

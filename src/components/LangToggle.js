@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useTheme } from '../ThemeContext'
-import { fs } from '../theme'
+import { fs, font } from '../theme'
 import { useI18n } from '../i18n'
 import { hapticLight } from '../utils/haptics'
 
@@ -56,6 +56,6 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   active: {
     backgroundColor: colors.primary + '33',
   },
-  text: { fontSize: fs(13, scale), fontWeight: '700', color: colors.textDim, letterSpacing: 0.5 },
+  text: { fontSize: fs(13, scale), ...font('700'), color: colors.textDim, letterSpacing: 0.5 },
   textActive: { color: colors.primaryLight },
 })

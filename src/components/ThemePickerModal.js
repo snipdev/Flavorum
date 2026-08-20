@@ -2,13 +2,14 @@ import { useEffect, useRef } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, themeVariants, isWeb } from '../theme'
-import { useTheme, TEXT_SCALE_PRESETS } from '../ThemeContext'
+import { fs, themeVariants, isWeb, font } from '../theme'
+import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 import { useEscToClose } from '../utils/useEscToClose'
 import { auditAllThemes, AA_NORMAL } from '../utils/contrast'
 
 const DARK_KEYS = ['ember', 'nebula', 'glacier', 'obsidian', 'contrast']
+const SILVER_KEYS = ['silver']
 const LIGHT_KEYS = ['emberLight', 'nebulaLight', 'glacierLight', 'obsidianLight', 'contrastLight']
 
 // Number of WCAG AA (< 4.5:1) failures per theme — surfaces accessibility
@@ -22,7 +23,7 @@ const FAIL_MAP = (() => {
 })()
 
 export default function ThemePickerModal({ visible, onClose }) {
-  const { theme, key: active, setTheme, textScale, setTextScale } = useTheme()
+  const { theme, key: active, setTheme, textScale } = useTheme()
   const { t } = useI18n()
   const styles = createStyles(theme, textScale)
   const cardRef = useRef(null)
@@ -104,6 +105,33 @@ export default function ThemePickerModal({ visible, onClose }) {
                 </TouchableOpacity>
               )
             })}
+            {SILVER_KEYS.map(key => {
+              const tv = themeVariants[key]
+              const isActive = active === key
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.option, styles.optionFull, isActive && { borderColor: tv.primaryLight, backgroundColor: tv.primary + '22' }]}
+                  onPress={() => setTheme(key)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={tv.name}
+                  accessibilityState={{ selected: isActive }}
+                >
+                  <View style={[styles.dot, { backgroundColor: tv.primary }]} />
+                  <Text style={[styles.optionText, { color: isActive ? tv.primaryLight : theme.text }]}>
+                    {tv.name}
+                  </Text>
+                  {FAIL_MAP[key] > 0 && (
+                    <View style={[styles.contrastBadge, { borderColor: tv.danger + '55', backgroundColor: tv.danger + '1A' }]}>
+                      <Ionicons name="warning" size={11} color={tv.danger} importantForAccessibility="no" />
+                      <Text style={[styles.contrastBadgeText, { color: tv.danger }]}>{t('theme.lowContrast')}</Text>
+                    </View>
+                  )}
+                  {isActive && <Ionicons name="checkmark-circle" size={18} color={tv.primaryLight} />}
+                </TouchableOpacity>
+              )
+            })}
             <Text style={styles.sectionLabel}>{t('theme.lightSection')}</Text>
             {LIGHT_KEYS.map(key => {
               const tv = themeVariants[key]
@@ -129,28 +157,6 @@ export default function ThemePickerModal({ visible, onClose }) {
                     </View>
                   )}
                   {isActive && <Ionicons name="checkmark-circle" size={18} color={tv.primaryLight} />}
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-
-          <Text style={styles.previewLabel}>{t('theme.textSize')}</Text>
-          <View style={styles.textSizeRow}>
-            {TEXT_SCALE_PRESETS.map((s, i) => {
-              const isActive = textScale === s
-              return (
-                <TouchableOpacity
-                  key={s}
-                  style={[styles.textSizeBtn, isActive && { borderColor: theme.primaryLight, backgroundColor: theme.primary + '22' }]}
-                  onPress={() => setTextScale(s)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={['S', 'M', 'L', 'XL'][i]}
-                  accessibilityState={{ selected: isActive }}
-                >
-                  <Text style={[styles.textSizeBtnText, { color: isActive ? theme.primaryLight : theme.textMuted }]}>
-                    {['S', 'M', 'L', 'XL'][i]}
-                  </Text>
                 </TouchableOpacity>
               )
             })}
@@ -205,7 +211,7 @@ function Preview({ theme, t, scale }) {
         </View>
       </View>
       <View style={[styles.previewBtn, { backgroundColor: theme.primary }]}>
-        <Ionicons name="calculator" size={13} color="#fff" />
+        <Ionicons name="calculator" size={11} color="#fff" />
         <Text style={styles.previewBtnText}>{t('build.calculate')}</Text>
       </View>
     </View>
@@ -234,13 +240,13 @@ const createStyles = (theme, scale = 1) => StyleSheet.create({
   cardContent: { padding: 18 },
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
   headerText: { flex: 1 },
-  title: { fontSize: fs(20, scale), fontWeight: '600', color: theme.text, letterSpacing: -0.3 },
+  title: { fontSize: fs(20, scale), ...font('600'), color: theme.text, letterSpacing: -0.3 },
   subtitle: { fontSize: fs(13, scale), color: theme.textMuted, marginTop: 3 },
   closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -6, marginRight: -6 },
-  options: { gap: 8, marginBottom: 16 },
+  options: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginBottom: 16 },
   sectionLabel: {
     fontSize: fs(11, scale),
-    fontWeight: '700',
+    ...font('700'),
     color: theme.textDim,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -249,17 +255,21 @@ const createStyles = (theme, scale = 1) => StyleSheet.create({
   },
   option: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
+    gap: 8,
+    width: '48.5%',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.border,
     backgroundColor: theme.inputBg,
   },
+  optionFull: { width: '100%' },
   dot: { width: 14, height: 14, borderRadius: 7 },
-  optionText: { flex: 1, fontSize: fs(15, scale), fontWeight: '600' },
+  optionFull: { width: '100%' },
+  optionText: { flex: 1, fontSize: fs(15, scale), ...font('600') },
   contrastBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,21 +279,10 @@ const createStyles = (theme, scale = 1) => StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 2,
   },
-  contrastBadgeText: { fontSize: fs(9, scale), fontWeight: '700' },
-  textSizeRow: { flexDirection: 'row', gap: 6, marginBottom: 16 },
-  textSizeBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.border,
-    backgroundColor: theme.inputBg,
-  },
-  textSizeBtnText: { fontSize: fs(14, scale), fontWeight: '700' },
+  contrastBadgeText: { fontSize: fs(9, scale), ...font('700') },
   previewLabel: {
     fontSize: fs(12, scale),
-    fontWeight: '700',
+    ...font('700'),
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     color: theme.textDim,
@@ -298,21 +297,23 @@ const createStyles = (theme, scale = 1) => StyleSheet.create({
   previewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   previewIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   previewTitleWrap: { flex: 1 },
-  previewTitle: { fontSize: fs(15, scale), fontWeight: '600' },
+  previewTitle: { fontSize: fs(15, scale), ...font('600') },
   previewBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  previewBadgeText: { fontSize: fs(10, scale), fontWeight: '800', letterSpacing: 0.5 },
+  previewBadgeText: { fontSize: fs(10, scale), ...font('800'), letterSpacing: 0.5 },
   previewPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
   previewPill: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  previewPillText: { fontSize: fs(12, scale), fontWeight: '600' },
+  previewPillText: { fontSize: fs(12, scale), ...font('600') },
   previewBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 10,
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
-  previewBtnText: { fontSize: fs(13, scale), fontWeight: '700', color: '#fff' },
+  previewBtnText: { fontSize: fs(12, scale), ...font('700'), color: '#fff' },
   doneBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -321,5 +322,5 @@ const createStyles = (theme, scale = 1) => StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 12,
   },
-  doneBtnText: { fontSize: fs(15, scale), fontWeight: '700', color: '#fff' },
+  doneBtnText: { fontSize: fs(15, scale), ...font('700'), color: '#fff' },
 })

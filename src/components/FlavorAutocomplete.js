@@ -1,7 +1,7 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform, Dimensions } from 'react-native'
 import { useTheme } from '../ThemeContext'
-import { fs } from '../theme'
+import { fs, font } from '../theme'
 import { ELR_FLAVORS } from '../data/flavors'
 import { parseFlavorName } from '../utils/flavorUtils'
 import { findRec, getRecValues, normFlavorKey, normRecKey } from '../utils/recipes'
@@ -404,7 +404,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  chipText: { fontSize: fs(12, scale), fontWeight: '600', color: colors.textMuted },
+  chipText: { fontSize: fs(12, scale), ...font('600'), color: colors.textMuted },
   chipTextActive: { color: '#fff' },
   list: { maxHeight: 360 },
   item: {
@@ -419,7 +419,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.primary + '26',
   },
   itemTextHighlight: {
-    fontWeight: '700',
+    ...font('700'),
     color: colors.primaryLight,
   },
   itemRow: {
@@ -437,7 +437,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
   },
-  brandBadgeText: { fontSize: fs(12, scale), fontWeight: '700', color: colors.primaryLight },
+  brandBadgeText: { fontSize: fs(12, scale), ...font('700'), color: colors.primaryLight },
   rateChips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -457,5 +457,5 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rateChipText: { fontSize: fs(12, scale), fontWeight: '700', color: colors.success },
+  rateChipText: { fontSize: fs(12, scale), ...font('700'), color: colors.success },
 })

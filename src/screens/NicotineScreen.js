@@ -9,7 +9,7 @@ import ResultBox from '../components/ResultBox'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import StickyHeader from '../components/StickyHeader'
 import ScreenHero from '../components/ScreenHero'
-import { fs, spacing, useLayoutMode, dockShadow, useShadowFade } from '../theme'
+import { fs, spacing, useLayoutMode, dockShadow, useShadowFade, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { calculateNicotine } from '../utils/calculations'
 import { loadRecipes, saveRecipes, loadBatches, saveBatches, newBatchId, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
@@ -1020,10 +1020,10 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   wizardStepCircleActive: { borderColor: colors.primary, backgroundColor: colors.primary + '26' },
   wizardStepCircleCurrent: { borderColor: colors.primaryLight, backgroundColor: colors.primary },
-  wizardStepNum: { fontSize: fs(12, scale), fontWeight: '700', color: colors.textDim },
+  wizardStepNum: { fontSize: fs(12, scale), ...font('700'), color: colors.textDim },
   wizardStepNumActive: { color: colors.primaryLight },
   wizardStepLabelWrap: { marginTop: 4, paddingHorizontal: 2 },
-  wizardStepLabel: { fontSize: fs(10, scale), color: colors.textDim, fontWeight: '600', textAlign: 'center' },
+  wizardStepLabel: { fontSize: fs(10, scale), color: colors.textDim, ...font('600'), textAlign: 'center' },
   wizardStepLabelActive: { color: colors.primaryLight },
   wizardStepLine: { height: 2, flex: 1, backgroundColor: colors.border, marginHorizontal: 2, borderRadius: 1 },
   wizardStepLineActive: { backgroundColor: colors.primary },
@@ -1035,7 +1035,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     padding: spacing.lg,
   },
   welcomeLogo: { width: 84, height: 84, borderRadius: 22, backgroundColor: '#F3EDE1', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', padding: 14, alignSelf: 'center', marginBottom: spacing.md },
-  welcomeTitle: { fontSize: fs(22, scale), fontWeight: '800', color: colors.text, marginBottom: 6 },
+  welcomeTitle: { fontSize: fs(22, scale), ...font('800'), color: colors.text, marginBottom: 6 },
   welcomeSubtitle: { fontSize: fs(14, scale), color: colors.textDim, lineHeight: 20, marginBottom: spacing.lg },
   welcomeOption: {
     flexDirection: 'row',
@@ -1058,7 +1058,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.primary + '1A',
   },
   welcomeOptionInfo: { flex: 1 },
-  welcomeOptionTitle: { fontSize: fs(16, scale), fontWeight: '700', color: colors.textMuted, marginBottom: 2 },
+  welcomeOptionTitle: { fontSize: fs(16, scale), ...font('700'), color: colors.textMuted, marginBottom: 2 },
   welcomeOptionDesc: { fontSize: fs(12, scale), color: colors.textDim, lineHeight: 17 },
   welcomeLoadBtn: {
     flexDirection: 'row',
@@ -1072,7 +1072,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.primary + '4D',
     marginTop: spacing.xs,
   },
-  welcomeLoadBtnText: { fontSize: fs(14, scale), color: colors.primaryLight, fontWeight: '600' },
+  welcomeLoadBtnText: { fontSize: fs(14, scale), color: colors.primaryLight, ...font('600') },
   wizardBody: { flex: 1 },
   wizardStage: { flex: 1 },
   wizardStageContent: {
@@ -1147,10 +1147,10 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     gap: 10,
     marginBottom: spacing.md,
   },
-  wideEmptyTitle: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, textAlign: 'center' },
+  wideEmptyTitle: { fontSize: fs(15, scale), ...font('700'), color: colors.textMuted, textAlign: 'center' },
   wideEmptyText: { fontSize: fs(13, scale), color: colors.textDim, textAlign: 'center', lineHeight: 19 },
   fieldGroup: { marginBottom: spacing.md },
-  fieldLabel: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.3 },
+  fieldLabel: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted, marginBottom: 8, letterSpacing: 0.3 },
   fieldHint: { fontSize: fs(11, scale), color: colors.textDim, marginTop: 6, lineHeight: 15 },
   modeRow: { flexDirection: 'row', gap: 6 },
   modeBtn: {
@@ -1162,7 +1162,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     alignItems: 'center',
   },
   modeBtnActive: { borderColor: colors.primary, backgroundColor: colors.primary + '1A' },
-  modeBtnText: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500' },
+  modeBtnText: { fontSize: fs(13, scale), color: colors.textDim, ...font('500') },
   modeBtnTextActive: { color: colors.primaryLight },
   customSpacing: { marginTop: spacing.md },
   card: {
@@ -1189,7 +1189,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  nicTitle: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
+  nicTitle: { fontSize: fs(14, scale), color: colors.textMuted, ...font('700'), letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
   flavorCard: {
     backgroundColor: colors.success + '12',
     borderWidth: 1,
@@ -1198,7 +1198,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  flavorTitle: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
+  flavorTitle: { fontSize: fs(14, scale), color: colors.textMuted, ...font('700'), letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
   ingredientTypeCard: {
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -1220,7 +1220,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.border,
   },
   toggleActive: { borderColor: colors.primary, backgroundColor: colors.primary + '1A' },
-  toggleText: { fontSize: fs(16, scale), color: colors.textDim, fontWeight: '600' },
+  toggleText: { fontSize: fs(16, scale), color: colors.textDim, ...font('600') },
   toggleTextActive: { color: colors.primaryLight },
   loadBatchRow: { alignItems: 'flex-end', marginTop: spacing.sm },
   loadBatchBtn: {
@@ -1233,7 +1233,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.primary + '40',
   },
-  loadBatchBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '600' },
+  loadBatchBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, ...font('600') },
   flavorList: { marginBottom: spacing.sm },
   flavorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.sm },
   flavorIndex: {
@@ -1243,7 +1243,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.success + '26',
     color: colors.success,
     fontSize: fs(13, scale),
-    fontWeight: '700',
+    ...font('700'),
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -1259,7 +1259,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     height: 48,
     paddingHorizontal: 6,
   },
-  flavorPct: { color: colors.textMuted, fontSize: fs(13, scale), fontWeight: '600', marginLeft: 2 },
+  flavorPct: { color: colors.textMuted, fontSize: fs(13, scale), ...font('600'), marginLeft: 2 },
   addFlavorBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1271,7 +1271,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.success + '4D',
     borderStyle: 'dashed',
   },
-  addFlavorBtnText: { fontSize: fs(13, scale), color: colors.success, fontWeight: '600' },
+  addFlavorBtnText: { fontSize: fs(13, scale), color: colors.success, ...font('600') },
   loadFlavorBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1284,9 +1284,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderStyle: 'dashed',
     marginTop: spacing.sm,
   },
-  loadFlavorBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '600' },
+  loadFlavorBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, ...font('600') },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md },
-  sectionTitle: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  sectionTitle: { fontSize: fs(15, scale), ...font('700'), color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   presetRowSpread: { flexDirection: 'row', gap: 8, marginBottom: spacing.md },
   presetGridRows: { marginBottom: spacing.md },
@@ -1301,8 +1301,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   presetSpread: { flex: 1, alignItems: 'center' },
   presetActive: { borderColor: colors.primary, backgroundColor: colors.primary + '2E' },
-  presetTextActive: { color: colors.primaryLight, fontWeight: '700' },
-  presetText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '500' },
+  presetTextActive: { color: colors.primaryLight, ...font('700') },
+  presetText: { fontSize: fs(13, scale), color: colors.primaryLight, ...font('500') },
   bottomDock: {
     borderTopWidth: 1,
     borderTopColor: colors.primary + '1F',
@@ -1331,11 +1331,11 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   summaryLabel: {
     fontSize: fs(9, scale),
     color: colors.textDim,
-    fontWeight: '600',
+    ...font('600'),
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  summaryValue: { fontSize: fs(12, scale), fontWeight: '700', color: colors.primaryLight },
+  summaryValue: { fontSize: fs(12, scale), ...font('700'), color: colors.primaryLight },
   summaryDivider: { width: 1, height: 18, backgroundColor: colors.primary + '1F' },
   saveResultBtn: {
     flexDirection: 'row',
@@ -1348,7 +1348,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.primary + '4D',
     backgroundColor: colors.primary + '0F',
   },
-  saveResultBtnText: { fontSize: fs(15, scale), fontWeight: '600', color: colors.primaryLight },
+  saveResultBtnText: { fontSize: fs(15, scale), ...font('600'), color: colors.primaryLight },
   topBtn: {
     position: 'absolute',
     right: 20,
@@ -1374,9 +1374,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   sourceCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  sourceCardTitle: { fontSize: fs(13, scale), fontWeight: '600', color: colors.primaryLight, letterSpacing: 0.3, textTransform: 'uppercase' },
+  sourceCardTitle: { fontSize: fs(13, scale), ...font('600'), color: colors.primaryLight, letterSpacing: 0.3, textTransform: 'uppercase' },
   cardSection: { marginBottom: spacing.sm },
-  cardSectionTitle: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '600', marginBottom: 8, letterSpacing: 0.3 },
+  cardSectionTitle: { fontSize: fs(14, scale), color: colors.textMuted, ...font('600'), marginBottom: 8, letterSpacing: 0.3 },
   warningBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1388,7 +1388,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     padding: 10,
     marginBottom: spacing.sm,
   },
-  warningText: { flex: 1, fontSize: fs(13, scale), color: colors.danger, fontWeight: '500' },
+  warningText: { flex: 1, fontSize: fs(13, scale), color: colors.danger, ...font('500') },
   inlineWarn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1401,7 +1401,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.warning + '59',
   },
-  inlineWarnText: { flex: 1, fontSize: fs(13, scale), color: colors.warning, fontWeight: '500' },
+  inlineWarnText: { flex: 1, fontSize: fs(13, scale), color: colors.warning, ...font('500') },
   presetPreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1426,7 +1426,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderStyle: 'dashed',
     marginBottom: spacing.md,
   },
-  addNicBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, fontWeight: '600' },
+  addNicBtnText: { fontSize: fs(13, scale), color: colors.primaryLight, ...font('600') },
   sourceAmountRow: { marginBottom: 0 },
   mixPreview: {
     flexDirection: 'row',
@@ -1439,8 +1439,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
   },
-  mixPreviewText: { fontSize: fs(14, scale), color: colors.textMuted, fontWeight: '500' },
-  mixPreviewValue: { color: colors.primaryLight, fontWeight: '700' },
+  mixPreviewText: { fontSize: fs(14, scale), color: colors.textMuted, ...font('500') },
+  mixPreviewValue: { color: colors.primaryLight, ...font('700') },
   recipeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1452,9 +1452,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginBottom: spacing.sm,
   },
   recipeRowInfo: { flex: 1, marginRight: spacing.sm },
-  recipeRowName: { fontSize: fs(17, scale), fontWeight: '600', color: colors.text, marginBottom: 4 },
+  recipeRowName: { fontSize: fs(17, scale), ...font('600'), color: colors.text, marginBottom: 4 },
   recipeRowMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  recipeRowMetaText: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500' },
+  recipeRowMetaText: { fontSize: fs(13, scale), color: colors.textDim, ...font('500') },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -1499,7 +1499,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   costHintText: { flex: 1, flexShrink: 1 },
   costHintMain: { fontSize: fs(12, scale), color: colors.textMuted, lineHeight: 17 },
-  costHintLink: { fontSize: fs(12, scale), color: colors.primaryLight, fontWeight: '700' },
+  costHintLink: { fontSize: fs(12, scale), color: colors.primaryLight, ...font('700') },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1516,9 +1516,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: spacing.sm },
   modalBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
   modalCancel: { backgroundColor: 'rgba(148, 163, 184, 0.1)', borderWidth: 1.5, borderColor: colors.border },
-  modalCancelText: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted },
+  modalCancelText: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted },
   modalConfirm: { backgroundColor: colors.primary },
-  modalConfirmText: { fontSize: fs(15, scale), fontWeight: '700', color: '#fff' },
+  modalConfirmText: { fontSize: fs(15, scale), ...font('700'), color: '#fff' },
   modalClose: { marginTop: spacing.md },
   modalEmptyText: { fontSize: fs(15, scale), color: colors.textDim, textAlign: 'center', paddingVertical: spacing.md, marginBottom: spacing.sm },
 })

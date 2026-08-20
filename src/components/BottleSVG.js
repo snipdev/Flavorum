@@ -2,7 +2,7 @@ import { useId, useRef, useEffect } from 'react'
 import { View, Text, Animated, Easing } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Path, Rect, ClipPath, Defs, G, Ellipse, LinearGradient, Stop } from 'react-native-svg'
-import { fs, isWeb } from '../theme'
+import { fs, isWeb, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 
 // Wrapping the SVG group in Animated lets the ripple drive its transform and
@@ -218,7 +218,7 @@ export default function BottleSVG({ segments, totalMl, width }) {
       {volLabel && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
           <Ionicons name="leaf-outline" size={12} color={colors.primaryLight} />
-          <Text style={{ fontSize: fs(12, textScale), fontWeight: '600', color: colors.textMuted }}>
+          <Text style={{ fontSize: fs(12, textScale), ...font('600'), color: colors.textMuted }}>
             {volLabel}
           </Text>
         </View>

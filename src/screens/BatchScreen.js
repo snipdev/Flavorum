@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from 
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing, isWeb, useLayoutMode } from '../theme'
+import { fs, spacing, isWeb, useLayoutMode, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import StickyHeader from '../components/StickyHeader'
@@ -522,7 +522,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   batchCardWide: { width: '48%', marginBottom: 0 },
   batchDelete: { position: 'absolute', top: 10, right: 10, zIndex: 1, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  batchName: { fontSize: fs(19, scale), fontWeight: '600', color: colors.text, marginBottom: 2, paddingRight: 46 },
+  batchName: { fontSize: fs(19, scale), ...font('600'), color: colors.text, marginBottom: 2, paddingRight: 46 },
   batchDate: { fontSize: fs(13, scale), color: colors.textMuted, marginBottom: spacing.sm },
   steepContainer: {
     backgroundColor: colors.inputBg,
@@ -543,8 +543,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   // Both sides may shrink so the badge wraps inside the card instead of
   // overflowing to the right on narrow screens.
   steepTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  steepTitle: { fontSize: fs(14, scale), fontWeight: '700', color: colors.textMuted, flexShrink: 1 },
-  steepBadgeText: { fontSize: fs(14, scale), fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  steepTitle: { fontSize: fs(14, scale), ...font('700'), color: colors.textMuted, flexShrink: 1 },
+  steepBadgeText: { fontSize: fs(14, scale), ...font('700'), flexShrink: 1, textAlign: 'right' },
   progressTrack: {
     height: 8,
     borderRadius: 4,
@@ -579,14 +579,14 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: colors.warning + '66',
   },
-  chipText: { fontSize: fs(13, scale), fontWeight: '500' },
+  chipText: { fontSize: fs(13, scale), ...font('500') },
   chipTextPrimary: { color: colors.primaryLight },
   chipTextSuccess: { color: colors.success },
   chipTextPriceMissing: { color: colors.warning },
   modeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   modeBadgeFlavor: { backgroundColor: colors.success + '33', borderWidth: 1, borderColor: colors.success + '66' },
   modeBadgeMix: { backgroundColor: colors.primary + '33', borderWidth: 1, borderColor: colors.primary + '66' },
-  modeBadgeText: { fontSize: fs(13, scale), fontWeight: '700' },
+  modeBadgeText: { fontSize: fs(13, scale), ...font('700') },
   bottleBlock: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -599,13 +599,13 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   bottleInfo: { flex: 1, gap: 5 },
   bottleInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bottleInfoLabel: { flex: 1, fontSize: fs(13, scale), color: colors.textMuted },
-  bottleInfoPct: { fontSize: fs(13, scale), fontWeight: '600', color: colors.text },
+  bottleInfoPct: { fontSize: fs(13, scale), ...font('600'), color: colors.text },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   detailBlock: { marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.primary + '33' },
   detailLabel: {
     fontSize: fs(13, scale),
     color: colors.textMuted,
-    fontWeight: '700',
+    ...font('700'),
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: 6,
@@ -624,7 +624,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     gap: 6,
   },
   costLabel: { flex: 1, fontSize: fs(14, scale), color: colors.textMuted },
-  costValue: { fontSize: fs(14, scale), fontWeight: '700', color: colors.text },
+  costValue: { fontSize: fs(14, scale), ...font('700'), color: colors.text },
   costWarnings: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   costWarnChip: {
     flexDirection: 'row',
@@ -638,7 +638,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  costWarnText: { fontSize: fs(12, scale), fontWeight: '600', color: colors.warning },
+  costWarnText: { fontSize: fs(12, scale), ...font('600'), color: colors.warning },
   toolbar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -661,7 +661,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   searchInput: { flex: 1, color: colors.text, fontSize: fs(14, scale), paddingVertical: 8, outlineStyle: 'none' },
   sortWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sortLabel: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500' },
+  sortLabel: { fontSize: fs(13, scale), color: colors.textDim, ...font('500') },
   sortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -673,7 +673,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.primary + '4D',
     backgroundColor: colors.primary + '14',
   },
-  sortBtnText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.primaryLight },
+  sortBtnText: { fontSize: fs(13, scale), ...font('600'), color: colors.primaryLight },
   noMatch: { color: colors.textDim, textAlign: 'center', paddingVertical: 24 },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
   emptyText: { fontSize: fs(17, scale), color: colors.textMuted },
@@ -687,7 +687,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 10,
   },
-  emptyCtaText: { color: '#fff', fontSize: fs(14, scale), fontWeight: '700' },
+  emptyCtaText: { color: '#fff', fontSize: fs(14, scale), ...font('700') },
   reminderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -703,8 +703,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   reminderBtnActive: { borderColor: colors.primaryLight + '66', backgroundColor: colors.primary + '2E' },
-  reminderBtnText: { fontSize: fs(13, scale), color: colors.textMuted, fontWeight: '600' },
+  reminderBtnText: { fontSize: fs(13, scale), color: colors.textMuted, ...font('600') },
   reminderBtnTextActive: { color: colors.primaryLight },
-  reminderFeedback: { fontSize: fs(13, scale), fontWeight: '600', marginTop: 8, textAlign: 'center' },
+  reminderFeedback: { fontSize: fs(13, scale), ...font('600'), marginTop: 8, textAlign: 'center' },
 })
 

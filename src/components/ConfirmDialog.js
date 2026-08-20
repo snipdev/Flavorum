@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing, isWeb } from '../theme'
+import { fs, spacing, isWeb, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 
@@ -110,12 +110,12 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
-  title: { fontSize: fs(18, scale), fontWeight: '600', color: colors.text, textAlign: 'center' },
+  title: { fontSize: fs(18, scale), ...font('600'), color: colors.text, textAlign: 'center' },
   message: { fontSize: fs(14, scale), color: colors.textMuted, textAlign: 'center', marginTop: 6, lineHeight: 20 },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg, alignSelf: 'stretch' },
   btn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
   cancel: { backgroundColor: 'rgba(148, 163, 184, 0.12)', borderWidth: 1.5, borderColor: colors.border },
-  cancelText: { fontSize: fs(15, scale), fontWeight: '600', color: colors.text },
+  cancelText: { fontSize: fs(15, scale), ...font('600'), color: colors.text },
   confirm: { backgroundColor: colors.danger },
-  confirmText: { fontSize: fs(15, scale), fontWeight: '700', color: '#fff' },
+  confirmText: { fontSize: fs(15, scale), ...font('700'), color: '#fff' },
 })

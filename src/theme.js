@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Animated, Platform, useWindowDimensions } from 'react-native'
 
+export { font } from './fonts'
+
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -422,6 +424,37 @@ export const themeVariants = {
     blob2: '#86EFAC',
     blob3: '#93C5FD',
     tabBg: 'rgba(255,255,255,0.95)',
+  },
+  silver: {
+    key: 'silver',
+    name: 'Silver',
+    tag: 'Gümüş',
+    bg: '#F1F1F5',
+    bgGradient: '#E6E6EE',
+    card: 'rgba(255,255,255,0.85)',
+    cardBorder: 'rgba(75,85,99,0.28)',
+    border: 'rgba(0,0,0,0.12)',
+    inputBg: 'rgba(0,0,0,0.05)',
+    text: '#1F2937',
+    textMuted: '#4B5563',
+    textDim: '#5B6472',
+    primary: '#4B5563',
+    primaryLight: '#374151',
+    primaryDark: '#1F2937',
+    accent: '#9CA3AF',
+    success: '#047857',
+    danger: '#DC2626',
+    warning: '#B45309',
+    vg: '#0E7490',
+    flavor: '#475569',
+    glass: 'rgba(255,255,255,0.7)',
+    glassBorder: 'rgba(0,0,0,0.10)',
+    glassBorderStrong: 'rgba(75,85,99,0.40)',
+    modalBg: '#FFFFFF',
+    blob1: '#D1D5DB',
+    blob2: '#CBD5E1',
+    blob3: '#E2E8F0',
+    tabBg: 'rgba(255,255,255,0.92)',
   },
 }
 

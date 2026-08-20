@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { TextInput, View, Text, StyleSheet, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing } from '../theme'
+import { fs, spacing, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 
 export default function Input({ label, value, onChangeText, keyboardType = 'decimal-pad', placeholder, suffix, icon }) {
@@ -34,7 +34,7 @@ export default function Input({ label, value, onChangeText, keyboardType = 'deci
 
 const createStyles = (colors, scale = 1) => StyleSheet.create({
   container: { marginBottom: spacing.md },
-  label: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted, marginBottom: 6, letterSpacing: 0.3 },
+  label: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted, marginBottom: 6, letterSpacing: 0.3 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -66,5 +66,5 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 6,
     marginRight: 8,
   },
-  suffix: { fontSize: fs(15, scale), color: colors.primaryLight, fontWeight: '500' },
+  suffix: { fontSize: fs(15, scale), color: colors.primaryLight, ...font('500') },
 })

@@ -8,7 +8,7 @@ import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import Input from '../components/Input'
 import StickyHeader from '../components/StickyHeader'
 import ScreenHero from '../components/ScreenHero'
-import { fs, spacing, tagColors, useLayoutMode } from '../theme'
+import { fs, spacing, tagColors, useLayoutMode, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { loadRecipes, saveRecipes, newRecipeId, seedStarterRecipes, loadInventory, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
 import { formatRecipeText } from '../utils/shareUtils'
@@ -831,7 +831,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md },
-  sectionTitle: { fontSize: fs(15, scale), fontWeight: '700', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  sectionTitle: { fontSize: fs(15, scale), ...font('700'), color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   sectionHeaderToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md },
   sectionHeaderChevron: { marginLeft: 'auto' },
   saveBtn: {
@@ -846,7 +846,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   saveBtnDisabled: {
     opacity: 0.45,
   },
-  saveBtnText: { fontSize: fs(16, scale), fontWeight: '700', color: '#fff' },
+  saveBtnText: { fontSize: fs(16, scale), ...font('700'), color: '#fff' },
   formActionsRow: { flexDirection: 'row', gap: spacing.sm },
   formActionsFlex: { flex: 1 },
   cancelEditBtn: {
@@ -854,7 +854,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.border,
   },
-  cancelEditBtnText: { fontSize: fs(16, scale), fontWeight: '700', color: colors.textMuted },
+  cancelEditBtnText: { fontSize: fs(16, scale), ...font('700'), color: colors.textMuted },
   feedbackError: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -867,7 +867,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.danger + '66',
   },
-  feedbackErrorText: { flex: 1, fontSize: fs(13, scale), color: colors.danger, fontWeight: '500' },
+  feedbackErrorText: { flex: 1, fontSize: fs(13, scale), color: colors.danger, ...font('500') },
   feedbackSuccess: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -880,7 +880,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.success + '59',
   },
-  feedbackSuccessText: { flex: 1, fontSize: fs(13, scale), color: colors.success, fontWeight: '500' },
+  feedbackSuccessText: { flex: 1, fontSize: fs(13, scale), color: colors.success, ...font('500') },
   liveSummary: {
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
@@ -895,7 +895,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.success + '59',
   },
   liveTotalRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveTotalText: { fontSize: fs(14, scale), fontWeight: '700' },
+  liveTotalText: { fontSize: fs(14, scale), ...font('700') },
   liveIssueRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   liveIssueDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.warning },
   liveIssueText: { flex: 1, fontSize: fs(13, scale), color: colors.textMuted },
@@ -912,8 +912,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary + '59',
   },
-  normalizeBtnText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.primaryLight },
-  fieldLabel: { fontSize: fs(15, scale), fontWeight: '600', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.3 },
+  normalizeBtnText: { fontSize: fs(13, scale), ...font('600'), color: colors.primaryLight },
+  fieldLabel: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted, marginBottom: 8, letterSpacing: 0.3 },
   flavorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.sm },
   flavorIndex: {
     width: 24,
@@ -922,7 +922,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.success + '33',
     color: colors.success,
     fontSize: fs(13, scale),
-    fontWeight: '700',
+    ...font('700'),
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -942,7 +942,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.danger,
     backgroundColor: colors.danger + '1F',
   },
-  flavorPct: { color: colors.textMuted, fontSize: fs(13, scale), fontWeight: '600', marginLeft: 2 },
+  flavorPct: { color: colors.textMuted, fontSize: fs(13, scale), ...font('600'), marginLeft: 2 },
   flavorRemoveBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: 2 },
   addFlavorBtn: {
     flexDirection: 'row',
@@ -956,7 +956,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderStyle: 'dashed',
     marginBottom: spacing.md,
   },
-  addFlavorBtnText: { fontSize: fs(13, scale), color: colors.success, fontWeight: '600' },
+  addFlavorBtnText: { fontSize: fs(13, scale), color: colors.success, ...font('600') },
   recipeCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
@@ -985,9 +985,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 10,
   },
-  brewBtnText: { color: '#fff', fontSize: fs(13, scale), fontWeight: '700' },
+  brewBtnText: { color: '#fff', fontSize: fs(13, scale), ...font('700') },
   recipeTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: spacing.sm },
-  recipeName: { fontSize: fs(18, scale), fontWeight: '600', color: colors.text },
+  recipeName: { fontSize: fs(18, scale), ...font('600'), color: colors.text },
   makeableBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -999,7 +999,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
   },
-  makeableBadgeText: { fontSize: fs(13, scale), fontWeight: '700', color: colors.success },
+  makeableBadgeText: { fontSize: fs(13, scale), ...font('700'), color: colors.success },
   oneMissingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1011,8 +1011,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
   },
-  oneMissingBadgeText: { fontSize: fs(13, scale), fontWeight: '700', color: colors.warning },
-  recipeSource: { fontSize: fs(13, scale), color: colors.textDim, fontWeight: '500', marginBottom: spacing.sm },
+  oneMissingBadgeText: { fontSize: fs(13, scale), ...font('700'), color: colors.warning },
+  recipeSource: { fontSize: fs(13, scale), color: colors.textDim, ...font('500'), marginBottom: spacing.sm },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1041,8 +1041,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   filterTabActive: { borderColor: colors.primaryLight, backgroundColor: colors.primary + '33' },
-  filterTabText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.textMuted },
-  filterTabTextActive: { color: colors.primaryLight, fontWeight: '700' },
+  filterTabText: { fontSize: fs(13, scale), ...font('600'), color: colors.textMuted },
+  filterTabTextActive: { color: colors.primaryLight, ...font('700') },
 
   noResults: { alignItems: 'center', justifyContent: 'center', paddingVertical: 28, gap: 8 },
   noResultsText: { fontSize: fs(14, scale), color: colors.textDim },
@@ -1054,7 +1054,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  tagText: { fontSize: fs(14, scale), color: colors.primaryLight, fontWeight: '500' },
+  tagText: { fontSize: fs(14, scale), color: colors.primaryLight, ...font('500') },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
   emptyText: { fontSize: fs(17, scale), color: colors.textDim },
 
@@ -1075,8 +1075,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     padding: spacing.lg,
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
-  modalTitle: { flex: 1, fontSize: fs(17, scale), fontWeight: '600', color: colors.text },
-  scaleRecipeName: { fontSize: fs(15, scale), color: colors.primaryLight, fontWeight: '600', marginBottom: 12 },
+  modalTitle: { flex: 1, fontSize: fs(17, scale), ...font('600'), color: colors.text },
+  scaleRecipeName: { fontSize: fs(15, scale), color: colors.primaryLight, ...font('600'), marginBottom: 12 },
   scalePresetsRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
   scalePreset: {
     flex: 1,
@@ -1090,25 +1090,25 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   scalePresetActive: { borderColor: colors.primaryLight, backgroundColor: colors.primary + '33' },
-  scalePresetText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.textMuted },
-  scalePresetTextActive: { color: colors.primaryLight, fontWeight: '700' },
+  scalePresetText: { fontSize: fs(13, scale), ...font('600'), color: colors.textMuted },
+  scalePresetTextActive: { color: colors.primaryLight, ...font('700') },
   scaleVolumeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14 },
-  scaleVolumeLabel: { fontSize: fs(14, scale), fontWeight: '600', color: colors.text },
+  scaleVolumeLabel: { fontSize: fs(14, scale), ...font('600'), color: colors.text },
   scaleVolumeInputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.inputBg, paddingHorizontal: 10, minHeight: 44 },
-  scaleVolumeInput: { width: 72, fontSize: fs(16, scale), fontWeight: '700', color: colors.text, paddingVertical: 8, textAlign: 'center' },
-  scaleVolumeSuffix: { fontSize: fs(14, scale), fontWeight: '600', color: colors.textMuted },
+  scaleVolumeInput: { width: 72, fontSize: fs(16, scale), ...font('700'), color: colors.text, paddingVertical: 8, textAlign: 'center' },
+  scaleVolumeSuffix: { fontSize: fs(14, scale), ...font('600'), color: colors.textMuted },
   scaleList: { maxHeight: Math.round(Dimensions.get('window').height * 0.4) },
   scaleItemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
   scaleItemName: { flex: 1, fontSize: fs(14, scale), color: colors.text },
   scaleItemVal: { fontSize: fs(13, scale), color: colors.textMuted },
-  scaleItemHighlight: { fontWeight: '700', color: colors.primaryLight },
+  scaleItemHighlight: { ...font('700'), color: colors.primaryLight },
   modalCloseBtn: { alignItems: 'center', paddingVertical: 10, marginTop: 12, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border },
-  modalCloseBtnText: { fontSize: fs(14, scale), fontWeight: '600', color: colors.text },
+  modalCloseBtnText: { fontSize: fs(14, scale), ...font('600'), color: colors.text },
   shareTextWrap: { backgroundColor: colors.inputBg, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 },
   shareText: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: fs(13, scale), color: colors.text, lineHeight: 18 },
   copyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 10 },
-  copyBtnText: { color: '#fff', fontWeight: '700', fontSize: fs(14, scale) },
-  copyErrorText: { fontSize: fs(13, scale), color: colors.danger, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+  copyBtnText: { color: '#fff', ...font('700'), fontSize: fs(14, scale) },
+  copyErrorText: { fontSize: fs(13, scale), color: colors.danger, ...font('600'), textAlign: 'center', marginTop: 8 },
 
   // Tag chip styles (form)
   tagChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: spacing.md },
@@ -1122,7 +1122,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
   },
-  tagChipText: { fontSize: fs(13, scale), fontWeight: '700' },
+  tagChipText: { fontSize: fs(13, scale), ...font('700') },
 
   // Tag filter row (list)
   tagFilterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: spacing.sm },
@@ -1136,13 +1136,13 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   tagFilterChipActive: { borderColor: colors.primaryLight, backgroundColor: colors.primary + '33' },
-  tagFilterChipText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.textMuted },
-  tagFilterChipTextActive: { color: colors.primaryLight, fontWeight: '700' },
+  tagFilterChipText: { fontSize: fs(13, scale), ...font('600'), color: colors.textMuted },
+  tagFilterChipTextActive: { color: colors.primaryLight, ...font('700') },
 
   // Recipe card category tag pills
   recipeTagPillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: spacing.xs },
   recipeTagPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1 },
-  recipeTagPillText: { fontSize: fs(13, scale), fontWeight: '700' },
+  recipeTagPillText: { fontSize: fs(13, scale), ...font('700') },
 
   // Share tab styles
   shareTabRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
@@ -1160,8 +1160,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     backgroundColor: colors.inputBg,
   },
   shareTabBtnActive: { borderColor: colors.primaryLight, backgroundColor: colors.primary + '33' },
-  shareTabText: { fontSize: fs(13, scale), fontWeight: '600', color: colors.textMuted },
-  shareTabTextActive: { color: colors.primaryLight, fontWeight: '700' },
+  shareTabText: { fontSize: fs(13, scale), ...font('600'), color: colors.textMuted },
+  shareTabTextActive: { color: colors.primaryLight, ...font('700') },
 
   // QR code view
   qrWrap: { alignItems: 'center', gap: 12, paddingVertical: 8 },

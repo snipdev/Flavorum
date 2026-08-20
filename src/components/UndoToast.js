@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing } from '../theme'
+import { fs, spacing, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 
@@ -62,7 +62,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     flexShrink: 1,
     fontSize: fs(13, scale),
     color: colors.textMuted,
-    fontWeight: '500',
+    ...font('500'),
   },
   undoBtn: {
     minHeight: 34,
@@ -70,5 +70,5 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  undoText: { fontSize: fs(13, scale), fontWeight: '700', color: colors.primaryLight },
+  undoText: { fontSize: fs(13, scale), ...font('700'), color: colors.primaryLight },
 })

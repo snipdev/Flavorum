@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from 
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
-import { fs, spacing, useLayoutMode } from '../theme'
+import { fs, spacing, useLayoutMode, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 import StickyHeader from '../components/StickyHeader'
@@ -451,11 +451,11 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   summaryItem: { flex: 1, alignItems: 'center', gap: 2 },
-  summaryNum: { fontSize: fs(20, scale), fontWeight: '700', color: colors.primaryLight },
+  summaryNum: { fontSize: fs(20, scale), ...font('700'), color: colors.primaryLight },
   summaryLabel: {
     fontSize: fs(9, scale),
     color: colors.textDim,
-    fontWeight: '600',
+    ...font('600'),
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
@@ -467,7 +467,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     gap: 5,
     marginTop: spacing.sm,
   },
-  savedAtText: { fontSize: fs(11, scale), color: colors.textDim, fontWeight: '600' },
+  savedAtText: { fontSize: fs(11, scale), color: colors.textDim, ...font('600') },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -479,7 +479,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.md },
   sectionTitle: {
     fontSize: fs(11, scale),
-    fontWeight: '700',
+    ...font('700'),
     color: colors.primaryLight,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -498,17 +498,17 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 12,
     marginTop: spacing.xs,
   },
-  addBtnText: { fontSize: fs(15, scale), fontWeight: '700', color: '#fff' },
+  addBtnText: { fontSize: fs(15, scale), ...font('700'), color: '#fff' },
   rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 },
-  rowName: { flexShrink: 1, fontSize: fs(14, scale), fontWeight: '600', color: colors.text },
+  rowName: { flexShrink: 1, fontSize: fs(14, scale), ...font('600'), color: colors.text },
   typeBadge: {
     borderWidth: 1,
     borderRadius: 6,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  typeBadgeText: { fontSize: fs(9, scale), fontWeight: '700', textTransform: 'uppercase' },
-  rowPerMl: { fontSize: fs(12, scale), fontWeight: '700', color: colors.primaryLight },
+  typeBadgeText: { fontSize: fs(9, scale), ...font('700'), textTransform: 'uppercase' },
+  rowPerMl: { fontSize: fs(12, scale), ...font('700'), color: colors.primaryLight },
   deleteBtn: { padding: 4, marginLeft: 'auto' },
   empty: { fontSize: fs(13, scale), color: colors.textDim, paddingVertical: spacing.sm },
 
@@ -538,10 +538,10 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   baseInfo: { flex: 1, gap: 4, minWidth: 0 },
   perMlRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  basePerMl: { fontSize: fs(12, scale), fontWeight: '700', color: colors.primaryLight },
+  basePerMl: { fontSize: fs(12, scale), ...font('700'), color: colors.primaryLight },
   savedBadge: {
     fontSize: fs(10, scale),
-    fontWeight: '700',
+    ...font('700'),
     color: colors.success,
     backgroundColor: colors.success + '1F',
     paddingHorizontal: 6,
