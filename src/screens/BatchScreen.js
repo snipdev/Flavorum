@@ -62,8 +62,8 @@ export default function BatchScreen({ navigation }) {
   const onHeaderScroll = useCallback((e) => headerRef.current?.handleScroll(e), [])
   const batchesRef = useRef(batches)
   useEffect(() => { batchesRef.current = batches }, [batches])
-  const nowRef = useRef(null)
-  useEffect(() => { nowRef.current = Date.now() })
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { setNow(Date.now()) })
 
   useFocusEffect(
     useCallback(() => {
@@ -150,7 +150,6 @@ export default function BatchScreen({ navigation }) {
     const steepDays = b.steepDays || 14
     if (!b.createdAt) return { pct: 100, daysLeft: 0, isReady: true, steepDays }
     const created = new Date(b.createdAt).getTime()
-    const now = nowRef.current
     const elapsedDays = (now - created) / (1000 * 60 * 60 * 24)
     const pct = Math.min(100, Math.round((elapsedDays / steepDays) * 100))
     const daysLeft = Math.max(0, Math.ceil(steepDays - elapsedDays))

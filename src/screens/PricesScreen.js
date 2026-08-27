@@ -66,27 +66,23 @@ export default function PricesScreen({ navigation, route }) {
   const [savedKey, setSavedKey] = useState(null)
   const savedTimer = useRef(null)
   // Timestamp of the last save — shown as "Saved just now / 2 min ago" under the summary
-  const lastSavedAtRef = useRef(null)
-  const nowRef = useRef(null)
-  useEffect(() => { nowRef.current = Date.now() })
-  const [hasSaved, setHasSaved] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState(null)
   const [, forceRender] = useReducer(x => x + 1, 0)
   const { undo, showUndo, dismissUndo, applyUndo } = useUndo()
 
   const flashSaved = (key) => {
     setSavedKey(key)
-    lastSavedAtRef.current = Date.now()
-    setHasSaved(true)
+    setLastSavedAt(Date.now())
     if (savedTimer.current) clearTimeout(savedTimer.current)
     savedTimer.current = setTimeout(() => setSavedKey(null), 1800)
   }
 
   // Re-render periodically so the relative "x min ago" stays fresh while mounted
   useEffect(() => {
-    if (!hasSaved) return
+    if (!lastSavedAt) return
     const id = setInterval(forceRender, 30000)
     return () => clearInterval(id)
-  }, [hasSaved])
+  }, [lastSavedAt])
 
   useFocusEffect(
     useCallback(() => {
@@ -117,8 +113,7 @@ export default function PricesScreen({ navigation, route }) {
     const next = [...prices, { id: `${Date.now()}`, type: 'flavor', name: finalName, amountMl: amt, price: pr, updatedAt: Date.now() }]
     setPrices(next)
     await savePrices(next)
-    lastSavedAtRef.current = Date.now()
-    setHasSaved(true)
+    setLastSavedAt(Date.now())
     hapticLight()
     setName('')
     setAmount('')
@@ -146,14 +141,13 @@ export default function PricesScreen({ navigation, route }) {
     setPrices(next)
     setConfirmId(null)
     await savePrices(next)
-    lastSavedAtRef.current = Date.now()
-    setHasSaved(true)
+    setLastSavedAt(Date.now())
     hapticLight()
     if (target) {
       showUndo(t('prices.undoDeleteMsg'), () => {
         setPrices(snapshot)
         savePrices(snapshot)
-        lastSavedAtRef.current = Date.now()
+        setLastSavedAt(Date.now())
       })
     }
   }
@@ -233,15 +227,15 @@ export default function PricesScreen({ navigation, route }) {
   const confirmTarget = prices.find(p => p.id === confirmId)
 
   let savedAtText = null
-  if (lastSavedAtRef.current) {
-    const sec = Math.floor((nowRef.current - lastSavedAtRef.current) / 1000)
+  if (lastSavedAt) {
+    const sec = Math.floor((Date.now() - lastSavedAt) / 1000)
     if (sec < 5) savedAtText = t('prices.savedJustNow')
     else if (sec < 60) savedAtText = t('prices.savedSecAgo', { n: sec })
     else if (sec < 3600) savedAtText = t('prices.savedMinAgo', { n: Math.floor(sec / 60) })
     else if (sec < 86400) savedAtText = t('prices.savedHrAgo', { n: Math.floor(sec / 3600) })
     else {
       // Older than a day — show the actual date (month/day/year)
-      const d = new Date(lastSavedAtRef.current)
+      const d = new Date(lastSavedAt)
       savedAtText = t('prices.savedDate', { date: `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}` })
     }
   }

@@ -1,4 +1,4 @@
-import { useId, useRef, useEffect } from 'react'
+import { useId, useState, useEffect } from 'react'
 import { View, Text, Animated, Easing } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Path, Rect, ClipPath, Defs, G, Ellipse, LinearGradient, Stop } from 'react-native-svg'
@@ -16,7 +16,7 @@ const AnimatedG = Animated.createAnimatedComponent(G)
  * DOM attribute updates each frame.
  */
 function SurfaceRipple({ y }) {
-  const ripple = useRef(new Animated.Value(0)).current
+  const [ripple] = useState(() => new Animated.Value(0))
 
   useEffect(() => {
     if (!isWeb) return
