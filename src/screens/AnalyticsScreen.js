@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
@@ -12,7 +12,7 @@ import StickyHeader from '../components/StickyHeader'
 import ScreenHero from '../components/ScreenHero'
 import {
   loadRecipes, loadBatches, loadInventory,
-  loadInventoryMeta, saveInventoryMeta,
+  loadInventoryMeta,
 } from '../utils/recipes'
 import { loadPrices } from '../utils/prices'
 import { buildBackup, restoreBackup, downloadTextFile } from '../utils/backup'

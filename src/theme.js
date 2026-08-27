@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Animated, Platform, useWindowDimensions } from 'react-native'
 
 export { font } from './fonts'
@@ -61,7 +61,7 @@ export function useSidebarWeb() {
 // cannot emit an interpolated shadow* style into the DOM, so the layer keeps
 // a static box-shadow and only its opacity animates).
 export function useShadowFade(active, duration = 200) {
-  const anim = useRef(new Animated.Value(active ? 1 : 0)).current
+  const [anim] = useState(() => new Animated.Value(active ? 1 : 0))
   useEffect(() => {
     Animated.timing(anim, {
       toValue: active ? 1 : 0,

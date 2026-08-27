@@ -3,10 +3,9 @@ import { View, Text, StyleSheet, Platform, ScrollView, TouchableOpacity, useWind
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import * as NavigationBar from 'expo-navigation-bar'
 import { useFonts } from 'expo-font'
-import { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { FONT_ASSETS } from './src/fonts'
 import NicotineScreen from './src/screens/NicotineScreen'
@@ -35,7 +34,8 @@ const tabs = [
 ]
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  // Fonts load on mount; rendering isn't gated on completion.
+  useFonts({
     Ionicons: require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
     ...FONT_ASSETS,
   })
@@ -136,7 +136,7 @@ function AppInner() {
       }
       document.documentElement.style.setProperty('--fl-focus', theme.primaryLight)
     }
-  }, [theme.bg])
+  }, [theme.bg, theme.primaryLight])
 
   return (
     <NavigationContainer

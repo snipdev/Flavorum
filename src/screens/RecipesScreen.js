@@ -260,7 +260,7 @@ export default function RecipesScreen({ navigation }) {
       setCopyError(false)
       setCopySuccess(true)
       setTimeout(() => setCopySuccess(false), 2000)
-    } catch (e) {
+    } catch {
       setCopySuccess(false)
       setCopyError(true)
       setTimeout(() => setCopyError(false), 3000)

@@ -9,7 +9,7 @@ export async function loadPrices() {
   try {
     const raw = await AsyncStorage.getItem(PRICES_KEY)
     return raw ? JSON.parse(raw) : []
-  } catch (e) {
+  } catch {
     return []
   }
 }
@@ -43,13 +43,11 @@ export function estimateBatchCost(batch, prices, meta = {}) {
   // nicMl covers every nicotine source: the added base (baseNicMl) plus any
   // extra source bottles (sourceMl) that were poured into the mix.
   let vol = 0
-  let flavorMl = 0
   let pgMl = 0
   let vgMl = 0
   let nicMl = 0
   if (result && parseFloat(result.actualTotal) > 0) {
     vol = parseFloat(result.actualTotal) || 0
-    flavorMl = parseFloat(result.flavorMl) || 0
     pgMl = parseFloat(result.pgNeeded) || 0
     vgMl = parseFloat(result.vgNeeded) || 0
     nicMl = parseFloat(result.nicMl) || 0
@@ -64,7 +62,6 @@ export function estimateBatchCost(batch, prices, meta = {}) {
       vol = parseFloat(batch && batch.totalVolume) || 0
     }
     if (vol <= 0) return { cost: 0, breakdown: [] }
-    flavorMl = vol * ((parseFloat(batch && batch.flavorPct) || 0) / 100)
     const pgPct = parseFloat(batch && batch.targetPg) || 0
     vgMl = vol * ((100 - pgPct) / 100)
     pgMl = vol * (pgPct / 100)

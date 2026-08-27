@@ -18,7 +18,7 @@ export function hapticLight() {
       // expo-haptics failed on this device — fall back to Android Vibration
       if (Platform.OS === 'android') Vibration.vibrate(8)
     })
-  } catch (e) {
+  } catch {
     // ignore — haptics are a nice-to-have
   }
 }

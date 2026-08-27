@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect, useEffect } from 'react'
+import { useState, useRef, useId, useLayoutEffect, useEffect } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform, Dimensions } from 'react-native'
 import { useTheme } from '../ThemeContext'
 import { fs, font } from '../theme'
@@ -56,7 +56,7 @@ export default function FlavorAutocomplete({ value, onChangeText, placeholder, e
   const [menuPos, setMenuPos] = useState(null)
   const [activeIndex, setActiveIndex] = useState(-1)
   const justPicked = useRef(false)
-  const listId = useRef(`flavor-list-${Math.random().toString(36).slice(2)}`).current
+  const listId = `flavor-list-${useId()}`
 
   const handleBlur = (e) => {
     const related = e && e.relatedTarget
@@ -190,13 +190,17 @@ export default function FlavorAutocomplete({ value, onChangeText, placeholder, e
   const showChips = focused && value.trim() && brands.length > 0
   const showDropdown = showChips || (focused && suggestions.length > 0)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!showDropdown) setActiveIndex(-1)
   }, [showDropdown, value])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (onActiveChange) onActiveChange(showDropdown)
   }, [showDropdown])
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const isWeb = Platform.OS === 'web'
   const nativeMinWidth = isWeb ? undefined : Math.min(280, Dimensions.get('window').width - 40)

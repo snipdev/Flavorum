@@ -268,7 +268,6 @@ const createStyles = (theme, scale = 1) => StyleSheet.create({
   },
   optionFull: { width: '100%' },
   dot: { width: 14, height: 14, borderRadius: 7 },
-  optionFull: { width: '100%' },
   optionText: { flex: 1, fontSize: fs(15, scale), ...font('600') },
   contrastBadge: {
     flexDirection: 'row',

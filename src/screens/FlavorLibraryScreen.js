@@ -302,6 +302,7 @@ export default function FlavorLibraryScreen({ navigation }) {
   }, [debouncedSearch, stats, localFlavors, sortBy, stockFilter, inventorySet, brandFilter])
 
   const [visibleCount, setVisibleCount] = useState(200)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setVisibleCount(200) }, [debouncedSearch, sortBy, stockFilter, brandFilter])
   const displayed = visibleCount >= filtered.length ? filtered : filtered.slice(0, visibleCount)
 
@@ -449,7 +450,7 @@ export default function FlavorLibraryScreen({ navigation }) {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="search-outline" size={40} color={colors.textDim} />
-            <Text style={styles.emptyText}>{t('flavors.noMatch')} "{search}"</Text>
+            <Text style={styles.emptyText}>{t('flavors.noMatch')} &quot;{search}&quot;</Text>
             <Text style={styles.emptyHint}>{t('flavors.emptySearch')}</Text>
           </View>
         }

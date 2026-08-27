@@ -40,8 +40,6 @@ export function calculateNicotine({
   const pgNeeded = targetPgMl - pgFromNic - pgFromFlavor
   const vgNeeded = targetVgMl - vgFromNic - vgFromFlavor
 
-  const actualPgMl = pgFromNic + pgFromFlavor + Math.max(pgNeeded, 0)
-  const actualVgMl = vgFromNic + vgFromFlavor + Math.max(vgNeeded, 0)
   const actualTotal = totalNicMl + flavorMl + Math.max(pgNeeded, 0) + Math.max(vgNeeded, 0)
   const actualNic = actualTotal > 0 ? totalNicMg / actualTotal : 0
 

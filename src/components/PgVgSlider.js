@@ -5,7 +5,6 @@ import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 
 export default function PgVgSlider({ value, onChangeText, label }) {
-  const { t } = useI18n()
   const { theme, textScale } = useTheme()
   const colors = theme
   const styles = createStyles(colors, textScale)

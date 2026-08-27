@@ -12,7 +12,7 @@ import ScreenHero from '../components/ScreenHero'
 import { fs, spacing, useLayoutMode, dockShadow, useShadowFade, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { calculateNicotine } from '../utils/calculations'
-import { loadRecipes, saveRecipes, loadBatches, saveBatches, newBatchId, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
+import { loadRecipes, loadBatches, saveBatches, newBatchId, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
 import { hapticLight } from '../utils/haptics'
 import { useEscToClose } from '../utils/useEscToClose'
 import { useI18n } from '../i18n'
@@ -34,7 +34,6 @@ function SourceCard({ source, onUpdate, onDelete, amountInputRef }) {
   const strength = source.strength
   const baseType = source.baseType
   const customPg = source.customPg || '50'
-  const customVg = source.customVg || '50'
   const amount = source.amount || ''
   return (
     <View style={styles.sourceCard}>
@@ -189,10 +188,12 @@ export default function NicotineScreen({ navigation, route }) {
       })
       loadBatches().then(list => { if (active) setSavedBatches(list) })
       return () => { active = false }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [route.params?.loadRecipeId, route.params?.brewRecipe])
   )
 
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const missingSource = nicSources.find(s => !(parseFloat(s.amount) > 0))
     if (missingSource) {
@@ -257,6 +258,7 @@ export default function NicotineScreen({ navigation, route }) {
     }
     setResult({ ...r, flavorBreakdown, nicBreakdown })
   }, [nicStrength, nicBaseMode, nicCustomPg, nicPg, targetStrength, targetPg, totalVolume, mixAmount, flavorPct, ingredientMode, flavors, nicSources, t])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const liveWarnings = useMemo(() => {
     const w = []
@@ -939,7 +941,7 @@ export default function NicotineScreen({ navigation, route }) {
                       return r.name.toLowerCase().includes(q) ||
                         r.flavors.some(f => (f.name || f.brand || '').toLowerCase().includes(q))
                     }).length === 0 && (
-                    <Text style={styles.modalEmptyText}>{t('recipes.noMatch')} "{loadSearch}"</Text>
+                    <Text style={styles.modalEmptyText}>{t('recipes.noMatch')} &quot;{loadSearch}&quot;</Text>
                   )}
                 </ScrollView>
               </>
