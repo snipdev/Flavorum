@@ -6,9 +6,13 @@ import { Ionicons } from '@expo/vector-icons'
 import SliderInput from '../components/SliderInput'
 import PgVgSlider from '../components/PgVgSlider'
 import ResultBox from '../components/ResultBox'
+import LivePreviewBottle from '../components/LivePreviewBottle'
+import VolumeScale from '../components/VolumeScale'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import StickyHeader from '../components/StickyHeader'
-import ScreenHero from '../components/ScreenHero'
+import ThemeToggle from '../components/ThemeToggle'
+import FontToggle from '../components/FontToggle'
+import LangToggle from '../components/LangToggle'
 import { fs, spacing, useLayoutMode, dockShadow, useShadowFade, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { calculateNicotine } from '../utils/calculations'
@@ -17,7 +21,6 @@ import { hapticLight } from '../utils/haptics'
 import { useEscToClose } from '../utils/useEscToClose'
 import { useI18n } from '../i18n'
 
-const TARGET_VOLUMES = [30, 60, 100, 120, 200, 250]
 const MIX_VOLUMES = [10, 15, 20, 30, 60, 100]
 const NIC_PRESETS = [1.5, 2, 3, 6, 10, 12]
 const VG_PG_PRESETS = [
@@ -25,7 +28,7 @@ const VG_PG_PRESETS = [
   { label: '70/30', pg: 30 },
   { label: '50/50', pg: 50 },
 ]
-const WIZARD_STEP_KEYS = ['build.wizardStep1', 'build.wizardStep2', 'build.wizardStep3', 'build.wizardStep4', 'build.wizardStep5']
+const WIZARD_STEP_KEYS = ['build.wizardStep1', 'build.wizardStep2', 'build.wizardStep3', 'build.wizardStep4', 'build.wizardStep5', 'build.wizardStep6', 'build.wizardStep7']
 
 function SourceCard({ source, onUpdate, onDelete, amountInputRef }) {
   const { t } = useI18n()
@@ -101,28 +104,29 @@ export default function NicotineScreen({ navigation, route }) {
   // Wide web (viewport >= 920px) unlocks the two-column desktop layout;
   // everything below that — and all of mobile — keeps the single column.
   const { wide, desktop } = useLayoutMode()
+  const volRef = useRef({ isMixMode: false, mixAmount: '0', totalVolume: '0', targetPg: '' })
   const [wizardStep, setWizardStep] = useState(1)
-  const [pageWidth, setPageWidth] = useState(0)
-  const trackAnim = useRef(new Animated.Value(0)).current
+  const stepFade = useRef(new Animated.Value(1)).current
+  const stepSlideY = useRef(new Animated.Value(0)).current
+  const stepScale = useRef(new Animated.Value(1)).current
+  const bottleShake = useRef(new Animated.Value(0)).current
+
   const goToStep = useCallback((next) => {
-    const clamped = Math.max(1, Math.min(5, next))
-    setWizardStep(clamped)
-    Animated.timing(trackAnim, {
-      toValue: -(clamped - 1) * pageWidth,
-      duration: 240,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start()
-  }, [pageWidth, trackAnim])
-  const onPagerLayout = useCallback((e) => {
-    const w = e.nativeEvent.layout.width
-    if (w > 0 && w !== pageWidth) {
-      setPageWidth(w)
-      trackAnim.setValue(-(wizardStep - 1) * w)
+    const clamped = Math.max(1, Math.min(7, next))
+    if (clamped === wizardStep) return
+    const { isMixMode: mix, mixAmount: amt, totalVolume: vol, targetPg: pg } = volRef.current
+    // Block going past step 2 if no volume selected
+    if (clamped > 2) {
+      const v = mix ? (parseFloat(amt) || 0) : (parseFloat(vol) || 0)
+      if (v <= 0) { shakeBottle(); return }
     }
-  }, [pageWidth, trackAnim, wizardStep])
+    // Block going past step 3 if no VG/PG ratio selected
+    if (clamped > 3 && !(parseFloat(pg) > 0)) { shakeBottle(); return }
+    setWizardStep(clamped)
+  }, [wizardStep])
   const dockShadowOpacity = useShadowFade(false)
   const headerRef = useRef(null)
-  const [nicStrength, setNicStrength] = useState('100')
+  const [nicStrength, setNicStrength] = useState('0')
   const [nicBaseMode, setNicBaseMode] = useState('pg')
   const [nicCustomPg, setNicCustomPg] = useState('50')
   const [nicCustomVg, setNicCustomVg] = useState('50')
@@ -131,24 +135,33 @@ export default function NicotineScreen({ navigation, route }) {
     if (nicBaseMode === 'vg') return '0'
     return nicCustomPg
   }, [nicBaseMode, nicCustomPg])
-  const [targetStrength, setTargetStrength] = useState('3')
-  const [targetPg, setTargetPg] = useState('30')
-  const [totalVolume, setTotalVolume] = useState('100')
-  const [mixAmount, setMixAmount] = useState('10')
+  const [targetStrength, setTargetStrength] = useState('0')
+  const [targetPg, setTargetPg] = useState('')
+  const [totalVolume, setTotalVolume] = useState('0')
+  const [mixAmount, setMixAmount] = useState('0')
   const [mixName, setMixName] = useState('')
-  const [flavorPct, setFlavorPct] = useState('15')
+  const [flavorPct, setFlavorPct] = useState('0')
   const [ingredientMode, setIngredientMode] = useState('flavor')
+  const isMixMode = ingredientMode === 'mix' || ingredientMode === 'single'
+  // Keep volRef in sync for goToStep volume check (avoids TDZ)
+  useEffect(() => { volRef.current = { isMixMode, mixAmount, totalVolume, targetPg } })
   const mixTotal = useMemo(() => {
-    if (ingredientMode !== 'mix') return null
+    if (!isMixMode) return null
     const vol = parseFloat(mixAmount) || 0
     const pct = parseFloat(flavorPct) || 0
     if (vol <= 0 || pct <= 0) return null
     return Math.round((vol / (pct / 100)) * 10) / 10
-  }, [ingredientMode, mixAmount, flavorPct])
+  }, [isMixMode, mixAmount, flavorPct])
   const [flavors, setFlavors] = useState([])
   const [nicSources, setNicSources] = useState([])
   const [result, setResult] = useState(null)
+  const [resultKey, setResultKey] = useState(0)
   const [warning, setWarning] = useState(null)
+  const prevResultRef = useRef(null)
+  useEffect(() => {
+    if (result && !prevResultRef.current) setResultKey(k => k + 1)
+    prevResultRef.current = result
+  }, [result])
   const [savedRecipes, setSavedRecipes] = useState([])
   const [savedBatches, setSavedBatches] = useState([])
   const [flavorRecs, setFlavorRecs] = useState({})
@@ -202,17 +215,17 @@ export default function NicotineScreen({ navigation, route }) {
       return
     }
     setWarning(null)
-    const vol = ingredientMode === 'mix' ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)
-    const pct = ingredientMode === 'mix'
+    const vol = isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)
+    const pct = isMixMode
       ? parseFloat(flavorPct) || 0
       : flavors.reduce((a, f) => a + (parseFloat(f.value) || 0), 0)
-    if (ingredientMode === 'mix' && pct <= 0) {
+    if (isMixMode && pct <= 0) {
       setWarning(t('build.warnConcentratePct'))
       setResult(null)
       return
     }
     let computedTotal = vol
-    if (ingredientMode === 'mix' && pct > 0) {
+    if (isMixMode && pct > 0) {
       computedTotal = vol / (pct / 100)
     }
     if (!(computedTotal > 0)) {
@@ -257,6 +270,7 @@ export default function NicotineScreen({ navigation, route }) {
       nicBreakdown.push({ name: `${t('build.nicStrength')} (${nicStr} mg/ml)`, ml: r.baseNicMl })
     }
     setResult({ ...r, flavorBreakdown, nicBreakdown })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nicStrength, nicBaseMode, nicCustomPg, nicPg, targetStrength, targetPg, totalVolume, mixAmount, flavorPct, ingredientMode, flavors, nicSources, t])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -267,11 +281,12 @@ export default function NicotineScreen({ navigation, route }) {
     const avail = Math.max(nicStr, ...nicSources.filter(s => parseFloat(s.amount) > 0).map(s => parseFloat(s.strength) || 0))
     const target = parseFloat(targetStrength) || 0
     if (avail > 0 && target > avail) w.push({ key: 'targetHigh', text: t('build.warnTargetHigh', { target, source: avail }) })
-    const flavorTotal = ingredientMode === 'mix'
+    const flavorTotal = isMixMode
       ? (parseFloat(flavorPct) || 0)
       : flavors.reduce((a, f) => a + (parseFloat(f.value) || 0), 0)
     if (flavorTotal > 25) w.push({ key: 'highFlavor', text: t('build.warnHighFlavor', { pct: flavorTotal }) })
     return w
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nicStrength, nicSources, targetStrength, ingredientMode, flavorPct, flavors, t])
 
   const highNicWarn = liveWarnings.find(w => w.key === 'highNic')
@@ -283,7 +298,7 @@ export default function NicotineScreen({ navigation, route }) {
     const target = parseFloat(targetStrength) || 0
     if (!(nic > 0) || !(target > 0)) return null
     let vol = parseFloat(totalVolume) || 0
-    if (ingredientMode === 'mix') {
+    if (isMixMode) {
       const amt = parseFloat(mixAmount) || 0
       const pct = parseFloat(flavorPct) || 0
       if (amt <= 0 || pct <= 0) return null
@@ -296,7 +311,7 @@ export default function NicotineScreen({ navigation, route }) {
 
   // Live totals for the sticky summary bar (updates as values change, no Calculate needed)
   const liveVol = useMemo(() => {
-    if (ingredientMode === 'mix') {
+    if (isMixMode) {
       const amt = parseFloat(mixAmount) || 0
       const pct = parseFloat(flavorPct) || 0
       if (amt <= 0 || pct <= 0) return null
@@ -304,10 +319,11 @@ export default function NicotineScreen({ navigation, route }) {
     }
     const vol = parseFloat(totalVolume) || 0
     return vol > 0 ? Math.round(vol * 10) / 10 : null
-  }, [ingredientMode, mixAmount, flavorPct, totalVolume])
+  }, [isMixMode, mixAmount, flavorPct, totalVolume])
 
-  const summaryPg = Math.round(parseFloat(targetPg) || 50)
-  const summaryVg = Math.round(100 - (parseFloat(targetPg) || 50))
+  const summaryPgVal = parseFloat(targetPg) || 0
+  const summaryPg = summaryPgVal > 0 ? Math.round(summaryPgVal) : 0
+  const summaryVg = summaryPgVal > 0 ? Math.round(100 - summaryPgVal) : 0
 
   const renderWarn = (w) => w ? (
     <View style={styles.inlineWarn} accessibilityLiveRegion="polite">
@@ -341,7 +357,7 @@ export default function NicotineScreen({ navigation, route }) {
 
   function loadBatch(b) {
     setIngredientMode(b.ingredientMode ?? 'flavor')
-    setMixName(b.ingredientMode === 'mix' && Array.isArray(b.flavors) && b.flavors.length > 0 ? b.flavors[0].name : '')
+    setMixName(b.isMixMode && Array.isArray(b.flavors) && b.flavors.length > 0 ? b.flavors[0].name : '')
     setNicStrength(String(b.nicStrength ?? '100'))
     setNicBaseMode(b.nicBaseMode ?? 'pg')
     setNicCustomPg(String(b.nicCustomPg ?? '50'))
@@ -379,7 +395,7 @@ export default function NicotineScreen({ navigation, route }) {
       totalVolume: parseFloat(totalVolume) || 0,
       mixAmount: parseFloat(mixAmount) || 0,
       flavorPct: parseFloat(flavorPct) || 0,
-      flavors: ingredientMode === 'mix'
+      flavors: isMixMode
         ? (mixName.trim() ? [{ name: mixName.trim(), value: parseFloat(flavorPct) || 0 }] : [])
         : flavors.map(f => ({ name: f.name.trim(), value: parseFloat(f.value) || 0 })),
       nicSources: nicSources.map(s => ({ strength: s.strength, baseType: s.baseType, customPg: s.customPg, customVg: s.customVg, amount: s.amount })),
@@ -394,7 +410,7 @@ export default function NicotineScreen({ navigation, route }) {
 
   const items = result ? [
     { value: result.isPossible ? t('build.readyToMix') : t('build.impossibleMix'), badge: result.isPossible ? 'success' : 'danger' },
-    { label: ingredientMode === 'mix' ? t('build.concentrate') : t('build.flavorToAdd'), value: `${result.flavorMl} ml`, accent: colors.flavor },
+    { label: isMixMode ? t('build.concentrate') : t('build.flavorToAdd'), value: `${result.flavorMl} ml`, accent: colors.flavor },
     ...(result.flavorBreakdown || []).map(f => ({ label: f.name, value: `${f.ml} ml`, sub: true, accent: colors.flavor })),
     { label: t('build.nicToAdd'), value: `${result.nicMl} ml`, accent: colors.danger },
     ...(result.nicBreakdown || []).map(n => ({ label: n.name, value: `${n.ml} ml`, sub: true, accent: colors.danger })),
@@ -412,24 +428,65 @@ export default function NicotineScreen({ navigation, route }) {
       ].filter(s => s.pct > 0.05)
     : []
 
+  // Live composition for the preview bottle (updates instantly as user types)
+  const previewSegments = (() => {
+    const pgPct = parseFloat(targetPg)
+    if (!(pgPct > 0)) return []
+    const nicStr = parseFloat(nicStrength) || 0
+    const tgt = parseFloat(targetStrength) || 0
+    let vol = 0
+    let flavorPctTotal = 0
+    if (isMixMode) {
+      const amt = parseFloat(mixAmount) || 0
+      const pct = parseFloat(flavorPct) || 0
+      if (amt > 0 && pct > 0) {
+        vol = amt / (pct / 100)
+        flavorPctTotal = pct
+      }
+    } else {
+      vol = parseFloat(totalVolume) || 0
+      flavorPctTotal = flavors.reduce((a, f) => a + (parseFloat(f.value) || 0), 0)
+    }
+    if (!(vol > 0)) return []
+    const flavorMl = flavorPctTotal > 0 ? (flavorPctTotal / 100) * vol : 0
+    const rest = Math.max(0, vol - flavorMl)
+    const nicMl = nicStr > 0 && tgt > 0 ? (tgt * vol) / nicStr : 0
+    const pgMl = rest * (pgPct / 100)
+    const vgMl = rest * (1 - pgPct / 100)
+    return [
+      { label: 'PG', pct: (pgMl / vol) * 100, color: colors.warning },
+      { label: 'VG', pct: (vgMl / vol) * 100, color: colors.success },
+      { label: t('build.nicotine'), pct: (nicMl / vol) * 100, color: colors.danger },
+      { label: t('build.flavor.mode'), pct: (flavorMl / vol) * 100, color: colors.flavor },
+    ].filter(s => s.pct > 0.05)
+  })()
+
   // Shared sections reused by both layouts, so the single-column (mobile) look
   // stays pixel-identical and the wide web layout composes from the same blocks.
   // The hero is kept separate: on wide web it spans the full width above the two
   // columns (so Theme/Lang controls sit at the app's far right, like other tabs),
   // while the narrow layout keeps it as the first scrolled block.
-  const heroBlock = desktop ? (
-    <View style={styles.heroLogoRow}>
-      <Image source={require('../../assets/flavorum.png')} style={styles.heroLogo} resizeMode="contain" />
-      <ScreenHero icon="flask" title={t('build.title')} subtitle={t('app.tagline')} subtitleNumberOfLines={2} desktop />
+  const heroBlock = (
+    <View style={[styles.heroLogoRow, !desktop && styles.heroLogoRowMobile]}>
+      <Image source={require('../../assets/flavorum.png')} style={[styles.heroLogo, !desktop && styles.heroLogoMobile]} resizeMode="contain" />
+      <View style={styles.heroText}>
+        <Text style={[styles.heroTitle, desktop && styles.heroTitleDesktop]}>{t('build.title')}</Text>
+        <Text style={styles.heroSubtitle} numberOfLines={2}>{t('app.tagline')}</Text>
+      </View>
+      {!desktop && (
+        <View style={styles.heroRight}>
+          <ThemeToggle />
+          <FontToggle />
+          <LangToggle />
+        </View>
+      )}
     </View>
-  ) : (
-    <ScreenHero icon="flask" title={t('build.title')} subtitle={t('app.tagline')} subtitleNumberOfLines={2} desktop={false} />
   )
 
   const flavorFields = (
     <>
 
-        {ingredientMode === 'mix' && (
+        {isMixMode && (
           <View style={styles.flavorCard}>
             <Text style={styles.flavorTitle}>{t('build.mixTitle')}</Text>
 
@@ -604,51 +661,7 @@ export default function NicotineScreen({ navigation, route }) {
     </View>
   )
 
-  const targetSection = (
-    <View style={styles.targetCard}>
-      <View style={styles.sectionHeader}>
-        <Ionicons name="options" size={14} color={colors.primaryLight} />
-        <Text style={styles.sectionTitle}>{t('build.target')}</Text>
-      </View>
 
-        {ingredientMode !== 'mix' && (
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>{t('build.targetAmount')}</Text>
-            <PresetGrid items={TARGET_VOLUMES} value={totalVolume} onSelect={setTotalVolume} suffix="ml" />
-            <SliderInput label="" value={totalVolume} onChangeText={setTotalVolume} min={0} max={500} step={5} suffix="ml" />
-          </View>
-        )}
-
-        <View style={styles.fieldGroup}>
-          <View style={styles.presetRowSpread}>
-            {VG_PG_PRESETS.map((p, i) => {
-              const active = parseFloat(targetPg) === p.pg
-              return (
-                <TouchableOpacity key={i} style={[styles.preset, styles.presetSpread, active && styles.presetActive]} onPress={() => setTargetPg(String(p.pg))} activeOpacity={0.7}>
-                  <Text style={[styles.presetText, active && styles.presetTextActive]}>{p.label}</Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-          <PgVgSlider label={t('build.targetPgVg')} value={targetPg} onChangeText={setTargetPg} />
-        </View>
-
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>{t('build.targetStrength')}</Text>
-          <PresetGrid items={NIC_PRESETS} value={targetStrength} onSelect={setTargetStrength} suffix="mg" />
-          <SliderInput label="" value={targetStrength} onChangeText={setTargetStrength} min={0} max={50} step={0.5} suffix="mg/ml" />
-          {renderWarn(targetHighWarn)}
-          {nicPreview && (
-            <View style={styles.presetPreview}>
-              <Ionicons name="calculator-outline" size={14} color={colors.primaryLight} />
-              <Text style={styles.presetPreviewText}>
-                {t('build.presetPreview', { ml: nicPreview.ml, strength: parseFloat(nicStrength) || 0, vol: nicPreview.vol, target: parseFloat(targetStrength) || 0 })}
-              </Text>
-            </View>
-          )}
-        </View>
-    </View>
-  )
 
   const resultSection = (
     <View
@@ -656,11 +669,13 @@ export default function NicotineScreen({ navigation, route }) {
     >
       {items && (
         <ResultBox
+          key={resultKey}
           items={items}
           title={t('build.recipe')}
           segments={composition}
           totalMl={result.actualTotal}
           flat={wide}
+          animateFill
           action={
             <TouchableOpacity style={styles.saveResultBtn} onPress={() => { hapticLight(); setSaveModalVisible(true) }} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('build.save')}>
               <Ionicons name="layers-outline" size={18} color={colors.primaryLight} />
@@ -672,10 +687,9 @@ export default function NicotineScreen({ navigation, route }) {
     </View>
   )
 
-  // Wizard step 1: "what do you want to do?" getting-started picker
-  const welcomeSection = (
+  // Step 1: Welcome — "What shall we make today?"
+  const volumeStep = (
     <View style={styles.welcomeCard}>
-      <Image source={require('../../assets/flavorum.png')} style={styles.welcomeLogo} resizeMode="contain" />
       <Text style={styles.welcomeTitle}>{t('build.welcomeTitle')}</Text>
       <Text style={styles.welcomeSubtitle}>{t('build.welcomeSubtitle')}</Text>
 
@@ -695,7 +709,7 @@ export default function NicotineScreen({ navigation, route }) {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.welcomeOption, ingredientMode === 'mix' && styles.welcomeOptionActive]}
+        style={[styles.welcomeOption, isMixMode && styles.welcomeOptionActive]}
         onPress={() => { setIngredientMode('mix'); goToStep(2) }}
         activeOpacity={0.7}
       >
@@ -703,8 +717,8 @@ export default function NicotineScreen({ navigation, route }) {
           <Ionicons name="flask" size={22} color={colors.primaryLight} />
         </View>
         <View style={styles.welcomeOptionInfo}>
-          <Text style={styles.welcomeOptionTitle}>{t('build.welcomeMixTitle')}</Text>
-          <Text style={styles.welcomeOptionDesc}>{t('build.welcomeMixDesc')}</Text>
+          <Text style={styles.welcomeOptionTitle}>{t('build.welcomeReadyMixTitle')}</Text>
+          <Text style={styles.welcomeOptionDesc}>{t('build.welcomeReadyMixDesc')}</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
       </TouchableOpacity>
@@ -716,10 +730,70 @@ export default function NicotineScreen({ navigation, route }) {
     </View>
   )
 
+  // Step 2: Target Liquid Amount (no presets, dynamic step, animated)
+  const volumeStep2 = (() => {
+    const vol = isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)
+    const pct = isMixMode ? (parseFloat(flavorPct) || 0) : 0
+    const totalVol = isMixMode && pct > 0 ? vol / (pct / 100) : vol
+    const dynamicStep = totalVol < 50 ? 1 : totalVol < 200 ? 5 : 10
+    return (
+      <View style={styles.welcomeCard}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="water" size={14} color={colors.primaryLight} />
+          <Text style={styles.sectionTitle}>{t('build.targetAmount')}</Text>
+        </View>
+
+        {!isMixMode ? (
+          <View style={styles.fieldGroup}>
+            <SliderInput label="" value={totalVolume} onChangeText={setTotalVolume} min={0} max={500} step={dynamicStep} suffix="ml" />
+          </View>
+        ) : (
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>{t('build.concentrateAmount')}</Text>
+            <SliderInput label="" value={mixAmount} onChangeText={setMixAmount} min={0} max={500} step={dynamicStep} suffix="ml" />
+            <SliderInput label={t('build.concentratePct')} value={flavorPct} onChangeText={setFlavorPct} min={0} max={40} step={0.5} suffix="%" />
+            {renderWarn(highFlavorWarn)}
+            {mixTotal !== null && (
+              <View style={styles.mixPreview}>
+                <Ionicons name="flask-outline" size={14} color={colors.primaryLight} />
+                <Text style={styles.mixPreviewText}>
+                  {t('build.makesAbout')} <Text style={styles.mixPreviewValue}>{mixTotal} ml</Text> {t('build.totalLiquid')}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    )
+  })()
+
+  // Step 3: VG / PG Ratio
+  const vgPgStep = (
+    <View style={styles.targetCard}>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="contrast" size={14} color={colors.primaryLight} />
+        <Text style={styles.sectionTitle}>{t('build.targetPgVg')}</Text>
+      </View>
+      <View style={styles.fieldGroup}>
+        <View style={styles.presetRowSpread}>
+          {VG_PG_PRESETS.map((p, i) => {
+            const active = parseFloat(targetPg) === p.pg
+            return (
+              <TouchableOpacity key={i} style={[styles.preset, styles.presetSpread, active && styles.presetActive]} onPress={() => setTargetPg(String(p.pg))} activeOpacity={0.7}>
+                <Text style={[styles.presetText, active && styles.presetTextActive]}>{p.label}</Text>
+              </TouchableOpacity>
+            )
+          })}
+        </View>
+        <PgVgSlider value={targetPg} onChangeText={setTargetPg} />
+      </View>
+    </View>
+  )
+
   // Wizard progress indicator: number circles with labels underneath.
   const wizardProgress = (
     <View style={[styles.wizardProgress, wide && styles.pagerWide]}>
-      {[1, 2, 3, 4, 5].map(step => (
+      {[1, 2, 3, 4, 5, 6, 7].map(step => (
         <View key={step} style={styles.wizardStep}>
           <View style={styles.wizardStepCircleRow}>
             {step > 1 && <View style={[styles.wizardStepLine, wizardStep >= step && styles.wizardStepLineActive]} />}
@@ -738,7 +812,7 @@ export default function NicotineScreen({ navigation, route }) {
                 wizardStep >= step && styles.wizardStepNumActive,
               ]}>{step}</Text>
             </TouchableOpacity>
-            {step < 5 && <View style={[styles.wizardStepLine, wizardStep > step && styles.wizardStepLineActive]} />}
+            {step < 7 && <View style={[styles.wizardStepLine, wizardStep > step && styles.wizardStepLineActive]} />}
           </View>
           <TouchableOpacity onPress={() => goToStep(step)} activeOpacity={0.7} accessibilityRole="button" style={styles.wizardStepLabelWrap}>
             <Text style={[
@@ -753,38 +827,103 @@ export default function NicotineScreen({ navigation, route }) {
     </View>
   )
 
-  // Wizard horizontal pager: each step is a full-width page that slides in
-  // horizontally. A page only scrolls vertically if its content overflows.
-  // Round arrows float at the vertical middle of the card on each side.
+  // Step 4: Target Nicotine Strength (was in targetSection)
+  const targetStrengthStep = (
+    <View style={styles.targetCard}>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="options" size={14} color={colors.primaryLight} />
+        <Text style={styles.sectionTitle}>{t('build.targetStrength')}</Text>
+      </View>
+      <View style={styles.fieldGroup}>
+        <PresetGrid items={NIC_PRESETS} value={targetStrength} onSelect={setTargetStrength} suffix="mg" />
+        <SliderInput label="" value={targetStrength} onChangeText={setTargetStrength} min={0} max={50} step={0.5} suffix="mg/ml" />
+        {renderWarn(targetHighWarn)}
+        {nicPreview && (
+          <View style={styles.presetPreview}>
+            <Ionicons name="calculator-outline" size={14} color={colors.primaryLight} />
+            <Text style={styles.presetPreviewText}>
+              {t('build.presetPreview', { ml: nicPreview.ml, strength: parseFloat(nicStrength) || 0, vol: nicPreview.vol, target: parseFloat(targetStrength) || 0 })}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  )
+
+  // Shared page wrapper for consistent scroll + crossfade styling
+  const stepPage = (key, content) => (
+    <ScrollView key={key} style={styles.crossfadePage} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
+      {content}
+    </ScrollView>
+  )
+
+  const stepPages = [
+    stepPage(1, volumeStep),
+    stepPage(2, volumeStep2),
+    stepPage(3, vgPgStep),
+    stepPage(4, nicotineFields),
+    stepPage(5, targetStrengthStep),
+    stepPage(6, wizardIngredientsSection),
+    stepPage(7, (
+      <>
+        {resultSection}
+        {!items && (
+          <View style={styles.wizardResultEmpty}>
+            <Ionicons name="flask-outline" size={30} color={colors.primary + '80'} />
+            <Text style={styles.wideEmptyTitle}>{t('build.wideEmptyTitle')}</Text>
+            <Text style={styles.wideEmptyText}>{t('build.wideEmptyText')}</Text>
+          </View>
+        )}
+      </>
+    )),
+  ]
+
+  const shakeBottle = () => {
+    Animated.sequence([
+      Animated.timing(bottleShake, { toValue: 10, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(bottleShake, { toValue: -10, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(bottleShake, { toValue: 8, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(bottleShake, { toValue: -8, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(bottleShake, { toValue: 0, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
+    ]).start()
+  }
+
+  const handleNext = () => {
+    const vol = isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)
+    if (vol <= 0 && wizardStep >= 2) { shakeBottle(); return }
+    if (wizardStep === 3 && !(parseFloat(targetPg) > 0)) { shakeBottle(); return }
+    goToStep(wizardStep + 1)
+  }
+
+  // Persistent live-preview bottle — sits between step buttons and page content
+  const persistentBottle = (
+    <LivePreviewBottle
+      segments={wizardStep <= 2 ? [] : previewSegments}
+      visible={true}
+      shake={bottleShake}
+    />
+  )
+
+  // Wizard crossfade pager: pages fade + slide in/out (cinematic transition)
   const wizardPager = (
     <View style={styles.wizardStage}>
       <View style={styles.wizardStageContent}>
-        <View style={styles.pager} onLayout={onPagerLayout}>
-          <Animated.View style={[styles.pagerTrack, { transform: [{ translateX: trackAnim }] }]}>
-            {[
-              <ScrollView key={1} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
-                {welcomeSection}
-              </ScrollView>,
-              <ScrollView key={2} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
-                {wizardIngredientsSection}
-              </ScrollView>,
-              <ScrollView key={3} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
-                {nicotineFields}
-              </ScrollView>,
-              <ScrollView key={4} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
-                {targetSection}
-              </ScrollView>,
-              <ScrollView key={5} style={[styles.pagerPage, { width: pageWidth }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.pagerContent}>
-                {resultSection}
-                {!items && (
-                  <View style={styles.wizardResultEmpty}>
-                    <Ionicons name="flask-outline" size={30} color={colors.primary + '80'} />
-                    <Text style={styles.wideEmptyTitle}>{t('build.wideEmptyTitle')}</Text>
-                    <Text style={styles.wideEmptyText}>{t('build.wideEmptyText')}</Text>
-                  </View>
-                )}
-              </ScrollView>,
-            ]}
+        {wizardStep > 1 && (
+          <View style={styles.bottleRow}>
+            {persistentBottle}
+            {wizardStep >= 2 && (isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)) > 0 && (
+              <VolumeScale
+                volume={isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)}
+              />
+            )}
+          </View>
+        )}
+        <View style={styles.crossfadeContainer}>
+          <Animated.View style={[styles.crossfadeTrack, {
+            opacity: stepFade,
+            transform: [{ translateY: stepSlideY }, { scale: stepScale }],
+          }]}>
+            {stepPages[wizardStep - 1]}
           </Animated.View>
         </View>
       </View>
@@ -793,8 +932,8 @@ export default function NicotineScreen({ navigation, route }) {
           <Ionicons name="chevron-back" size={24} color={colors.primaryLight} />
         </TouchableOpacity>
       )}
-      {wizardStep < 5 && (
-        <TouchableOpacity style={[styles.wizardFloatArrow, styles.wizardFloatArrowRight]} onPress={() => goToStep(wizardStep + 1)} activeOpacity={0.8} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} accessibilityRole="button" accessibilityLabel={t('common.next')}>
+      {wizardStep < 7 && (
+        <TouchableOpacity style={[styles.wizardFloatArrow, styles.wizardFloatArrowRight]} onPress={handleNext} activeOpacity={0.8} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} accessibilityRole="button" accessibilityLabel={t('common.next')}>
           <Ionicons name="chevron-forward" size={24} color={colors.primaryLight} />
         </TouchableOpacity>
       )}
@@ -824,7 +963,7 @@ export default function NicotineScreen({ navigation, route }) {
           <Text style={styles.summaryLabel}>{t('build.summaryVgPg')}</Text>
           <View style={styles.summaryValueRow}>
             <Ionicons name="contrast-outline" size={11} color={colors.primaryLight} />
-            <Text style={styles.summaryValue} numberOfLines={1}>{`${summaryVg}/${summaryPg}`}</Text>
+            <Text style={styles.summaryValue} numberOfLines={1}>{summaryPgVal > 0 ? `${summaryVg}/${summaryPg}` : '—'}</Text>
           </View>
         </View>
       </View>
@@ -874,7 +1013,7 @@ export default function NicotineScreen({ navigation, route }) {
                 <TouchableOpacity key={b.id} style={styles.recipeRow} onPress={() => loadBatch(b)} activeOpacity={0.7}>
                   <View style={styles.recipeRowInfo}>
                     <Text style={styles.recipeRowName}>{b.name}</Text>
-                    <Text style={styles.recipeRowMetaText}>{b.ingredientMode === 'mix' ? t('build.mix.mode') : t('build.flavor.mode')} · {(b.totalVolume || b.mixAmount) ? `${b.totalVolume || b.mixAmount} ml` : ''} · {b.targetStrength ? `${b.targetStrength} mg` : ''}</Text>
+                    <Text style={styles.recipeRowMetaText}>{b.isMixMode ? t('build.mix.mode') : t('build.flavor.mode')} · {(b.totalVolume || b.mixAmount) ? `${b.totalVolume || b.mixAmount} ml` : ''} · {b.targetStrength ? `${b.targetStrength} mg` : ''}</Text>
                   </View>
                   <Ionicons name="download-outline" size={20} color={colors.primaryLight} />
                 </TouchableOpacity>
@@ -1005,27 +1144,34 @@ export default function NicotineScreen({ navigation, route }) {
 const createStyles = (colors, scale = 1) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   heroLogoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm },
+  heroLogoRowMobile: { gap: spacing.sm },
   heroLogo: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#F3EDE1', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', padding: 7 },
+  heroLogoMobile: { width: 36, height: 36, borderRadius: 10, padding: 5 },
+  heroText: { flex: 1, flexShrink: 1 },
+  heroTitle: { fontSize: fs(23, scale), ...font('700'), color: colors.text, letterSpacing: -0.5 },
+  heroTitleDesktop: { fontSize: fs(18, scale) },
+  heroSubtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
+  heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   // Wizard styles
   wizardProgress: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.sm },
   wizardStep: { flex: 1, alignItems: 'center' },
   wizardStepCircleRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
   wizardStepCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: colors.inputBg,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   wizardStepCircleActive: { borderColor: colors.primary, backgroundColor: colors.primary + '26' },
   wizardStepCircleCurrent: { borderColor: colors.primaryLight, backgroundColor: colors.primary },
-  wizardStepNum: { fontSize: fs(12, scale), ...font('700'), color: colors.textDim },
+  wizardStepNum: { fontSize: fs(9, scale), ...font('700'), color: colors.textDim },
   wizardStepNumActive: { color: colors.primaryLight },
   wizardStepLabelWrap: { marginTop: 4, paddingHorizontal: 2 },
-  wizardStepLabel: { fontSize: fs(10, scale), color: colors.textDim, ...font('600'), textAlign: 'center' },
+  wizardStepLabel: { fontSize: fs(9, scale), color: colors.textDim, ...font('600'), textAlign: 'center' },
   wizardStepLabelActive: { color: colors.primaryLight },
   wizardStepLine: { height: 2, flex: 1, backgroundColor: colors.border, marginHorizontal: 2, borderRadius: 1 },
   wizardStepLineActive: { backgroundColor: colors.primary },
@@ -1035,6 +1181,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     padding: spacing.lg,
+    gap: spacing.md,
   },
   welcomeLogo: { width: 84, height: 84, borderRadius: 22, backgroundColor: '#F3EDE1', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', padding: 14, alignSelf: 'center', marginBottom: spacing.md },
   welcomeTitle: { fontSize: fs(22, scale), ...font('800'), color: colors.text, marginBottom: 6 },
@@ -1075,6 +1222,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginTop: spacing.xs,
   },
   welcomeLoadBtnText: { fontSize: fs(14, scale), color: colors.primaryLight, ...font('600') },
+
   wizardBody: { flex: 1 },
   wizardStage: { flex: 1 },
   wizardStageContent: {
@@ -1109,6 +1257,18 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   pagerTrack: { flexDirection: 'row', flex: 1, alignItems: 'stretch' },
   pagerPage: { flexShrink: 0 },
   pagerContent: { paddingHorizontal: 14, paddingTop: spacing.xs, paddingBottom: 24 },
+  crossfadeContainer: { position: 'relative', flex: 1, overflow: 'visible' },
+  crossfadeTrack: { flex: 1 },
+  crossfadePage: { flex: 1 },
+  bottleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    pointerEvents: 'none',
+    minHeight: 220,
+  },
+
   wizardResultEmpty: {
     alignItems: 'center',
     gap: 10,
@@ -1151,7 +1311,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   },
   wideEmptyTitle: { fontSize: fs(15, scale), ...font('700'), color: colors.textMuted, textAlign: 'center' },
   wideEmptyText: { fontSize: fs(13, scale), color: colors.textDim, textAlign: 'center', lineHeight: 19 },
-  fieldGroup: { marginBottom: spacing.md },
+  fieldGroup: {},
   fieldLabel: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted, marginBottom: 8, letterSpacing: 0.3 },
   fieldHint: { fontSize: fs(11, scale), color: colors.textDim, marginTop: 6, lineHeight: 15 },
   modeRow: { flexDirection: 'row', gap: 6 },
@@ -1174,7 +1334,9 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.cardBorder,
     padding: spacing.lg,
     marginBottom: spacing.md,
+    gap: spacing.md,
   },
+  cardWithPreview: { position: 'relative', overflow: 'visible' },
   targetCard: {
     backgroundColor: colors.primary + '12',
     borderRadius: 16,
@@ -1182,6 +1344,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderColor: colors.primary + '59',
     padding: spacing.lg,
     marginBottom: spacing.md,
+    gap: spacing.md,
   },
   nicCard: {
     backgroundColor: 'rgba(124, 58, 237, 0.07)',
@@ -1190,6 +1353,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 12,
     padding: spacing.md,
     marginBottom: spacing.md,
+    gap: spacing.md,
   },
   nicTitle: { fontSize: fs(14, scale), color: colors.textMuted, ...font('700'), letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
   flavorCard: {
@@ -1199,6 +1363,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     borderRadius: 12,
     padding: spacing.md,
     marginBottom: spacing.md,
+    gap: spacing.md,
   },
   flavorTitle: { fontSize: fs(14, scale), color: colors.textMuted, ...font('700'), letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
   ingredientTypeCard: {

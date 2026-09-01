@@ -1,60 +1,103 @@
-import { useId, useState, useEffect } from 'react'
-import { View, Text, Animated, Easing } from 'react-native'
+import { useId, useState, useEffect, useRef, useMemo } from 'react'
+import { View, Text, Animated, Easing, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Path, Rect, ClipPath, Defs, G, Ellipse, LinearGradient, Stop } from 'react-native-svg'
 import { fs, isWeb, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 
-// Wrapping the SVG group in Animated lets the ripple drive its transform and
-// opacity through setNativeProps on every frame — no per-frame React state,
-// so the surrounding BottleSVG never re-renders during the wave.
+// Animated wrapper for SVG groups (used by fillOpacity)
 const AnimatedG = Animated.createAnimatedComponent(G)
 
+let _bottleStyleInjected = false
+function injectBottleCSS() {
+  if (_bottleStyleInjected || !isWeb) return
+  _bottleStyleInjected = true
+  const style = document.createElement('style')
+  style.textContent = `
+    @keyframes bubbleRise {
+      0%   { transform: translateY(0); opacity: 0; }
+      10%  { opacity: 0.6; }
+      75%  { opacity: 0.55; }
+      100% { transform: translateY(-50px); opacity: 0; }
+    }
+    @keyframes bubbleWobble {
+      0%   { transform: translateX(0); }
+      25%  { transform: translateX(2px); }
+      50%  { transform: translateX(-1.5px); }
+      75%  { transform: translateX(1px); }
+      100% { transform: translateX(0); }
+    }
+    @keyframes rippleDrift {
+      0%   { transform: translateX(0) translateY(0); opacity: 0.08; }
+      50%  { transform: translateX(5px) translateY(-1.2px); opacity: 0.2; }
+      100% { transform: translateX(0) translateY(0); opacity: 0.08; }
+    }
+    @keyframes rippleDrift2 {
+      0%   { transform: translateX(0) translateY(0); opacity: 0.06; }
+      50%  { transform: translateX(-4px) translateY(0.8px); opacity: 0.16; }
+      100% { transform: translateX(0) translateY(0); opacity: 0.06; }
+    }
+  `
+  document.head.appendChild(style)
+}
+
 /**
- * Gentle surface ripple driven by react-native's Animated (web only; no-op on
- * mobile). The traveling wave is applied as animated SVG props, so only the
- * DOM attribute updates each frame.
+ * Surface ripple using CSS keyframe animations (web) — zero React re-renders.
  */
 function SurfaceRipple({ y }) {
-  const [ripple] = useState(() => new Animated.Value(0))
-
-  useEffect(() => {
-    if (!isWeb) return
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(ripple, { toValue: 1, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
-        Animated.timing(ripple, { toValue: 0, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
-      ])
-    )
-    loop.start()
-    return () => loop.stop()
-  }, [ripple])
-
+  useEffect(() => { injectBottleCSS() }, [])
   if (!isWeb) return null
-
-  // Traveling wave: drifts sideways (half an 18-unit period), bobs gently up,
-  // and pulses opacity 0.08 → 0.16 → 0.08.
   const base = y + 0.6
-  const d =
-    `M 15 ${base} Q 24 ${base - 1.2} 33 ${base}` +
-    ` Q 42 ${base + 1.2} 51 ${base}` +
-    ` Q 60 ${base - 1.2} 69 ${base}` +
-    ` Q 78 ${base + 1.2} 87 ${base}` +
-    ` Q 96 ${base - 1.2} 105 ${base}`
+  const d0 =
+    `M 15 ${base} Q 24 ${base - 1.4} 33 ${base}` +
+    ` Q 42 ${base + 1.4} 51 ${base}` +
+    ` Q 60 ${base - 1.4} 69 ${base}` +
+    ` Q 78 ${base + 1.4} 87 ${base}` +
+    ` Q 96 ${base - 1.4} 105 ${base}`
+  return (
+    <G>
+      <Path stroke="#ffffff" strokeWidth={0.9} fill="none" d={d0} opacity={0.12}
+        style={{ animation: 'rippleDrift 3s ease-in-out infinite' }} />
+      <Path stroke="#ffffff" strokeWidth={0.5} fill="none" d={d0} opacity={0.07}
+        style={{ animation: 'rippleDrift2 4.2s ease-in-out infinite' }} />
+    </G>
+  )
+}
 
-  const transform = ripple.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: ['translate(0 0)', 'translate(4.5 -1.1)', 'translate(9 0)'],
-  })
-  const opacity = ripple.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.08, 0.16, 0.08],
-  })
+/**
+ * LiquidBubbles — renders 5 static bubbles positioned along the liquid height.
+ * Each bubble has a CSS keyframe animation that makes it rise and wobble.
+ */
+function LiquidBubbles({ clipId, bodyBottom, fillTopMax, total }) {
+  useEffect(() => { injectBottleCSS() }, [])
+  if (!isWeb || total <= 0) return null
+
+  const riseRange = bodyBottom - fillTopMax - 8
+  const bottom = bodyBottom - 2
+
+  // 5 bubbles — spread across the liquid height, different animation delays
+  const bubbles = [
+    { cx: 36, r: 3.2, delay: '0s',   dur: '3s' },
+    { cx: 52, r: 2.5, delay: '0.7s', dur: '3.5s' },
+    { cx: 68, r: 3.8, delay: '1.4s', dur: '2.8s' },
+    { cx: 43, r: 2.8, delay: '0.3s', dur: '4s' },
+    { cx: 60, r: 2.0, delay: '2s',   dur: '3.2s' },
+  ]
 
   return (
-    <AnimatedG transform={transform} opacity={opacity}>
-      <Path d={d} stroke="#ffffff" strokeWidth={0.8} fill="none" />
-    </AnimatedG>
+    <G clipPath={`url(#${clipId})`}>
+      {bubbles.map((b, i) => (
+        <G key={i} style={{
+          animation: `bubbleRise ${b.dur} ease-in-out ${b.delay} infinite`,
+          transformOrigin: `${b.cx}px ${bottom}px`,
+        }}>
+          <Ellipse cx={b.cx} cy={bottom} rx={b.r} ry={b.r * 1.4}
+            fill="rgba(255,255,255,0.6)" stroke="rgba(255,255,255,0.3)" strokeWidth={0.4}
+            style={{ animation: `bubbleWobble ${parseFloat(b.dur) * 0.7}s ease-in-out ${b.delay} infinite` }}
+          />
+        </G>
+      ))}
+    </G>
   )
 }
 
@@ -65,8 +108,13 @@ function SurfaceRipple({ y }) {
  * `totalMl` (optional) renders a small volume label under the bottle.
  * Size is responsive: bigger on web, compact on mobile. Pass `width` to override.
  */
-export default function BottleSVG({ segments, totalMl, width }) {
+export default function BottleSVG({ segments, totalMl, width, animateFill }) {
   const { theme, textScale } = useTheme()
+  const fillOpacity = useRef(new Animated.Value(animateFill ? 0 : 1)).current
+  useEffect(() => {
+    if (!animateFill) return
+    Animated.timing(fillOpacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const colors = theme
   const bottleWidth = width || (isWeb ? 112 : 96)
   const rawId = useId()
@@ -74,7 +122,7 @@ export default function BottleSVG({ segments, totalMl, width }) {
 
   const vbW = 110
   const vbH = 166
-  const height = bottleWidth * (vbH / vbW)
+  const height = bottleWidth * (vbH / vbW) * 1.15
 
   // Bottle silhouette: neck (47..63) tapers out to body (22..88).
   const bodyPath =
@@ -171,6 +219,7 @@ export default function BottleSVG({ segments, totalMl, width }) {
 
         {/* Liquid layers (clipped to the bottle interior) */}
         <G clipPath={`url(#${clipId})`}>
+          <AnimatedG opacity={fillOpacity}>
           {layers.map(layer => (
             <Rect key={layer.key} x={20} y={layer.y} width={70} height={layer.h + 0.6} fill={layer.color} />
           ))}
@@ -202,6 +251,10 @@ export default function BottleSVG({ segments, totalMl, width }) {
           {layers.length > 0 && (
             <SurfaceRipple y={surfaceY} />
           )}
+          {/* Animated bubbles inside the liquid */}
+          {layers.length > 0 && (
+            <LiquidBubbles clipId={clipId} bodyBottom={bodyBottom} fillTopMax={fillTopMax} total={total} />
+          )}
           {/* Graduation marks (measuring scale on the right side) */}
           {marks.map((m, i) => (
             <Rect key={'m' + i} x={81 - m.len} y={m.y - 0.5} width={m.len} height={1} fill="rgba(255,255,255,0.30)" />
@@ -213,6 +266,7 @@ export default function BottleSVG({ segments, totalMl, width }) {
             <Rect x={46} y={84} width={16} height={102} fill={`url(#${sheenId})`} />
             <Rect x={50} y={84} width={3.5} height={102} fill="rgba(255,255,255,0.10)" />
           </G>
+          </AnimatedG>
         </G>
       </Svg>
       {volLabel && (

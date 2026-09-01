@@ -12,7 +12,7 @@ export const TEXT_SCALE_PRESETS = [0.9, 1.0, 1.15, 1.3]
 const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
-  const [key, setKey] = useState('emberLight')
+  const [key, setKey] = useState('obsidian')
   const [textScale, setTextScaleState] = useState(1.0)
   const [fontKey, setFontKeyState] = useState('system')
   const [ready, setReady] = useState(false)

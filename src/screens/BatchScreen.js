@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from 'react-native'
+import { Animated, View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
@@ -15,6 +15,43 @@ import { scheduleSteepNotification, cancelNotification, requestNotifPermission }
 import { useUndo } from '../utils/useUndo'
 import UndoToast from '../components/UndoToast'
 import { useI18n } from '../i18n'
+
+/* ── Animated batch card wrapper (fade + slide entrance) ── */
+function AnimatedCard({ children, index, style }) {
+  const opacity = useRef(new Animated.Value(0)).current
+  const translateY = useRef(new Animated.Value(24)).current
+
+  useEffect(() => {
+    const delay = Math.min(index, 6) * 80
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 350, delay, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 350, delay, useNativeDriver: true }),
+    ]).start()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
+      {children}
+    </Animated.View>
+  )
+}
+
+/* ── Animated progress bar (fills from 0 to target pct on mount) ── */
+function AnimatedProgressBar({ pct, isReady, colors, delay = 0, trackStyle, barStyle }) {
+  const width = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    Animated.spring(width, { toValue: pct, tension: 40, friction: 12, delay, useNativeDriver: false }).start()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const barWidth = width.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'], extrapolate: 'clamp' })
+
+  return (
+    <View style={trackStyle} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
+      <Animated.View style={[barStyle, { width: barWidth, backgroundColor: isReady ? colors.success : colors.primaryLight }]} />
+    </View>
+  )
+}
 
 let notesTimer = null
 const persistNotes = (updated) => {
@@ -273,12 +310,12 @@ export default function BatchScreen({ navigation }) {
         )}
 
         <View style={[styles.batchGrid, wide && styles.batchGridWide]}>
-        {visibleBatches.map(b => {
+        {visibleBatches.map((b, idx) => {
           const { pct, daysLeft, isReady, steepDays } = calcSteepStatus(b)
           const rating = b.rating || 0
           const comp = batchComposition(b)
           return (
-            <View key={b.id} style={[styles.batchCard, wide && styles.batchCardWide]}>
+            <AnimatedCard key={b.id} index={idx} style={[styles.batchCard, wide && styles.batchCardWide]}>
               <TouchableOpacity style={styles.batchDelete} onPress={() => setConfirmId(b.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel={t('batches.deleteTitle')}>
                 <Ionicons name="trash-outline" size={18} color={colors.danger} />
               </TouchableOpacity>
@@ -296,9 +333,7 @@ export default function BatchScreen({ navigation }) {
                     {isReady ? t('batches.readyToVape') : t('batches.steepDaysLeft', { days: daysLeft, pct })}
                   </Text>
                 </View>
-                <View style={styles.progressTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
-                  <View style={[styles.progressBar, { width: `${pct}%`, backgroundColor: isReady ? colors.success : colors.primaryLight }]} />
-                </View>
+                <AnimatedProgressBar pct={pct} isReady={isReady} colors={colors} delay={Math.min(idx, 6) * 80 + 150} trackStyle={styles.progressTrack} barStyle={styles.progressBar} />
               </View>
 
               <View style={styles.tagRow}>
@@ -479,7 +514,7 @@ export default function BatchScreen({ navigation }) {
                   {reminderFeedback.text}
                 </Text>
               )}
-            </View>
+            </AnimatedCard>
           )
         })}
         </View>

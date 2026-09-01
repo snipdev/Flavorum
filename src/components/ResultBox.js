@@ -5,7 +5,7 @@ import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 import BottleSVG from './BottleSVG'
 
-export default function ResultBox({ items, title, segments = [], totalMl, flat, action }) {
+export default function ResultBox({ items, title, segments = [], totalMl, flat, action, animateFill }) {
   const { t } = useI18n()
   const { theme, textScale } = useTheme()
   const colors = theme
@@ -34,7 +34,7 @@ export default function ResultBox({ items, title, segments = [], totalMl, flat, 
       {segments.length > 0 && (
         <View style={styles.composition}>
           <View style={styles.bottleRow}>
-            <BottleSVG segments={segments} totalMl={totalMl} />
+            <BottleSVG segments={segments} totalMl={totalMl} animateFill={animateFill} />
             <View style={styles.legend}>
               {segments.map((seg, i) => (
                 <View key={i} style={styles.legendItem}>

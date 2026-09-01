@@ -103,7 +103,7 @@ export default function SliderInput({ label, value, onChangeText, min = 0, max =
 }
 
 const createStyles = (colors, scale = 1) => StyleSheet.create({
-  container: { marginBottom: spacing.md },
+  container: {},
   label: { fontSize: fs(15, scale), ...font('600'), color: colors.textMuted, marginBottom: 6, letterSpacing: 0.3 },
   inputRow: {
     flexDirection: 'row',
@@ -163,7 +163,7 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     marginRight: 6,
   },
   suffix: { fontSize: fs(15, scale), color: colors.primaryLight, ...font('500') },
-  slider: { width: '100%', height: 36, marginTop: 2 },
-  rangeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -6 },
+  slider: { width: '100%', height: 28, marginTop: 0 },
+  rangeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -2 },
   rangeText: { fontSize: fs(14, scale), color: colors.textMuted },
 })
