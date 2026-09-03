@@ -203,7 +203,7 @@ export default function BatchScreen({ navigation }) {
         segs: [
           { label: 'PG', pct: (parseFloat(b.result.pgNeeded) / resTotal) * 100, color: colors.warning },
           { label: 'VG', pct: (parseFloat(b.result.vgNeeded) / resTotal) * 100, color: colors.success },
-          { label: t('build.nicotine'), pct: (parseFloat(b.result.nicMl) / resTotal) * 100, color: colors.danger },
+          { label: t('build.nicotineLabel'), pct: (parseFloat(b.result.nicMl) / resTotal) * 100, color: colors.danger },
           { label: t('build.flavor.mode'), pct: (parseFloat(b.result.flavorMl) / resTotal) * 100, color: colors.flavor },
         ].filter(s => s.pct > 0.05),
       }
@@ -238,7 +238,7 @@ export default function BatchScreen({ navigation }) {
       segs: [
         { label: 'PG', pct: (pgMl / vol) * 100, color: colors.warning },
         { label: 'VG', pct: (vgMl / vol) * 100, color: colors.success },
-        { label: t('build.nicotine'), pct: (nicMl / vol) * 100, color: colors.danger },
+        { label: t('build.nicotineLabel'), pct: (nicMl / vol) * 100, color: colors.danger },
         { label: t('build.flavor.mode'), pct: (flavorMl / vol) * 100, color: colors.flavor },
       ].filter(s => s.pct > 0.05),
     }

@@ -84,7 +84,7 @@ export default function VolumeScale({ volume = 0 }) {
         })}
         {/* Current volume indicator */}
         {volume > 0 && (
-          <View style={[styles.volumeIndicator, { top: barHeight - (volume / maxVolume) * barHeight - 8 }]}>
+          <View style={[styles.volumeIndicator, { top: barHeight - Math.min(volume / maxVolume, 1) * barHeight - 8 }]}>
             <Text style={styles.volumeIndicatorText}>{Math.round(volume)}</Text>
           </View>
         )}

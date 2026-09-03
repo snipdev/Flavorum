@@ -121,7 +121,7 @@ export default function NicotineScreen({ navigation, route }) {
   // Wide web (viewport >= 920px) unlocks the two-column desktop layout;
   // everything below that — and all of mobile — keeps the single column.
   const { wide, desktop } = useLayoutMode()
-  const volRef = useRef({ isMixMode: false, mixAmount: '0', totalVolume: '0', targetPg: '', nicStrength: '', nicBaseMode: '', targetStrength: '0', noNicotine: false })
+  const volRef = useRef({ isMixMode: false, mixAmount: '0', flavorPct: '0', totalVolume: '0', targetPg: '', nicStrength: '', nicBaseMode: '', targetStrength: '0', noNicotine: false })
   const [wizardStep, setWizardStep] = useState(1)
   const stepFade = useRef(new Animated.Value(1)).current
   const stepSlideY = useRef(new Animated.Value(0)).current
@@ -130,14 +130,18 @@ export default function NicotineScreen({ navigation, route }) {
 
   const goToStep = useCallback((next) => {
     let clamped = Math.max(1, Math.min(7, next))
-    const { isMixMode: mix, mixAmount: amt, totalVolume: vol, targetPg: pg, nicStrength: nStr, nicBaseMode: nMode, targetStrength: tStr, noNicotine: noNic } = volRef.current
+    const { isMixMode: mix, mixAmount: amt, flavorPct: pctAmt, totalVolume: vol, targetPg: pg, nicStrength: nStr, nicBaseMode: nMode, targetStrength: tStr, noNicotine: noNic } = volRef.current
+    // Mix mode skips the flavors step (6) entirely — 5 jumps straight to 7
+    if (mix && clamped === 6) clamped = next > wizardStep ? 7 : 5
     // Nicotine-free skips the strength step (5) entirely — 4 jumps straight to 6
-    if (noNic && clamped === 5) clamped = next > 5 ? 6 : 4
+    if (noNic && clamped === 5) clamped = next > wizardStep ? 6 : 4
     if (clamped === wizardStep) return
     // Block going past step 2 if no volume selected
     if (clamped > 2) {
       const v = mix ? (parseFloat(amt) || 0) : (parseFloat(vol) || 0)
       if (v <= 0) { shakeBottle(); return }
+      // A mix needs its recommended % too — without it the total liquid is unknown
+      if (mix && !(parseFloat(pctAmt) > 0)) { shakeBottle(); return }
     }
     // Block going past step 3 if no VG/PG ratio selected
     if (clamped > 3 && !(parseFloat(pg) > 0)) { shakeBottle(); return }
@@ -167,7 +171,7 @@ export default function NicotineScreen({ navigation, route }) {
   const [ingredientMode, setIngredientMode] = useState('flavor')
   const isMixMode = ingredientMode === 'mix' || ingredientMode === 'single'
   // Keep volRef in sync for goToStep checks (avoids TDZ)
-  useEffect(() => { volRef.current = { isMixMode, mixAmount, totalVolume, targetPg, nicStrength, nicBaseMode, targetStrength, noNicotine } })
+  useEffect(() => { volRef.current = { isMixMode, mixAmount, flavorPct, totalVolume, targetPg, nicStrength, nicBaseMode, targetStrength, noNicotine } })
   const mixTotal = useMemo(() => {
     if (!isMixMode) return null
     const vol = parseFloat(mixAmount) || 0
@@ -432,7 +436,7 @@ export default function NicotineScreen({ navigation, route }) {
     ? [
         { label: 'PG', pct: (result.pgNeeded / result.actualTotal) * 100, color: colors.warning },
         { label: 'VG', pct: (result.vgNeeded / result.actualTotal) * 100, color: colors.success },
-        { label: t('build.nicotine'), pct: (result.nicMl / result.actualTotal) * 100, color: colors.danger },
+        { label: t('build.nicotineLabel'), pct: (result.nicMl / result.actualTotal) * 100, color: colors.danger },
         { label: t('build.flavor.mode'), pct: (result.flavorMl / result.actualTotal) * 100, color: colors.flavor },
       ].filter(s => s.pct > 0.05)
     : []
@@ -465,7 +469,7 @@ export default function NicotineScreen({ navigation, route }) {
     return [
       { label: 'PG', pct: (pgMl / vol) * 100, color: colors.warning },
       { label: 'VG', pct: (vgMl / vol) * 100, color: colors.success },
-      { label: t('build.nicotine'), pct: (nicMl / vol) * 100, color: colors.danger },
+      { label: t('build.nicotineLabel'), pct: (nicMl / vol) * 100, color: colors.danger },
       { label: t('build.flavor.mode'), pct: (flavorMl / vol) * 100, color: colors.flavor },
     ].filter(s => s.pct > 0.05)
   })()
@@ -494,39 +498,6 @@ export default function NicotineScreen({ navigation, route }) {
 
   const flavorFields = (
     <>
-
-        {isMixMode && (
-          <View style={styles.flavorCard}>
-            <Text style={styles.flavorTitle}>{t('build.mixTitle')}</Text>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>{t('build.mixName')}</Text>
-              <FlavorAutocomplete
-                value={mixName}
-                onChangeText={setMixName}
-                placeholder={t('build.mixNamePlaceholder')}
-              />
-              <Text style={styles.fieldHint}>{t('build.mixNameHint')}</Text>
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>{t('build.concentrateAmount')}</Text>
-              <PresetGrid items={MIX_VOLUMES} value={mixAmount} onSelect={setMixAmount} suffix="ml" />
-              <SliderInput label="" value={mixAmount} onChangeText={setMixAmount} min={0} max={500} step={5} suffix="ml" />
-            </View>
-            <SliderInput label={t('build.concentratePct')} value={flavorPct} onChangeText={setFlavorPct} min={0} max={40} step={0.5} suffix="%" />
-            {renderWarn(highFlavorWarn)}
-            {mixTotal !== null && (
-              <View style={styles.mixPreview}>
-                <Ionicons name="flask-outline" size={14} color={colors.primaryLight} />
-                <Text style={styles.mixPreviewText}>
-                  {t('build.makesAbout')} <Text style={styles.mixPreviewValue}>{mixTotal} ml</Text> {t('build.totalLiquid')}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
         {ingredientMode === 'flavor' && (
           <View style={styles.flavorCard}>
             <Text style={styles.flavorTitle}>{t('build.flavorTitle')}</Text>
@@ -795,7 +766,7 @@ export default function NicotineScreen({ navigation, route }) {
       <View style={styles.welcomeCard}>
         <View style={styles.sectionHeader}>
           <Ionicons name="water" size={14} color={colors.primaryLight} />
-          <Text style={styles.sectionTitle}>{t('build.targetAmount')}</Text>
+          <Text style={styles.sectionTitle}>{t(isMixMode ? 'build.singleConcentrateTitle' : 'build.targetAmount')}</Text>
         </View>
 
         {!isMixMode ? (
@@ -803,9 +774,22 @@ export default function NicotineScreen({ navigation, route }) {
             <SliderInput label="" value={totalVolume} onChangeText={setTotalVolume} min={0} max={500} step={dynamicStep} suffix="ml" />
           </View>
         ) : (
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>{t('build.concentrateAmount')}</Text>
-            <SliderInput label="" value={mixAmount} onChangeText={setMixAmount} min={0} max={500} step={dynamicStep} suffix="ml" />
+          <>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>{t('build.mixName')}</Text>
+              <FlavorAutocomplete
+                value={mixName}
+                onChangeText={setMixName}
+                placeholder={t('build.mixNamePlaceholder')}
+              />
+              <Text style={styles.fieldHint}>{t('build.mixNameHint')}</Text>
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>{t('build.concentrateAmount')}</Text>
+              <PresetGrid items={MIX_VOLUMES} value={mixAmount} onSelect={setMixAmount} suffix="ml" />
+              <SliderInput label="" value={mixAmount} onChangeText={setMixAmount} min={10} max={100} step={1} suffix="ml" />
+            </View>
             <SliderInput label={t('build.concentratePct')} value={flavorPct} onChangeText={setFlavorPct} min={0} max={40} step={0.5} suffix="%" />
             {renderWarn(highFlavorWarn)}
             {mixTotal !== null && (
@@ -816,7 +800,7 @@ export default function NicotineScreen({ navigation, route }) {
                 </Text>
               </View>
             )}
-          </View>
+          </>
         )}
       </View>
     )
@@ -870,7 +854,7 @@ export default function NicotineScreen({ navigation, route }) {
   const wizardProgress = (
     <View style={[styles.wizardProgress, wide && styles.pagerWide]}>
       {[1, 2, 3, 4, 5, 6, 7].map(step => {
-        const skipped = noNicotine && step === 5
+        const skipped = (noNicotine && step === 5) || (isMixMode && step === 6)
         return (
           <View key={step} style={styles.wizardStep}>
             <View style={styles.wizardStepCircleRow}>
@@ -980,15 +964,17 @@ export default function NicotineScreen({ navigation, route }) {
   const handleNext = () => {
     const vol = isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)
     if (vol <= 0 && wizardStep >= 2) { shakeBottle(); return }
+    // A mix also needs the recommended % before leaving step 2
+    if (wizardStep === 2 && isMixMode && !(parseFloat(flavorPct) > 0)) { shakeBottle(); return }
     if (wizardStep === 3 && !(parseFloat(targetPg) > 0)) { shakeBottle(); return }
-    if (wizardStep === 4) {
-      // Nicotine-free skips the strength step (5) — jump straight to flavors (6)
-      if (noNicotine) { goToStep(6); return }
-      if (!((parseFloat(nicStrength) || 0) > 0 && nicBaseMode !== '')) { shakeBottle(); return }
-    }
+    if (wizardStep === 4 && !noNicotine && !((parseFloat(nicStrength) || 0) > 0 && nicBaseMode !== '')) { shakeBottle(); return }
     // On the strength step, 0 is not a valid choice — a target must be picked
-    if (wizardStep === 5 && !(parseFloat(targetStrength) > 0)) { shakeBottle(); return }
-    goToStep(wizardStep + 1)
+    if (wizardStep === 5 && !noNicotine && !(parseFloat(targetStrength) > 0)) { shakeBottle(); return }
+    // Nicotine-free skips the strength step (5); mixes skip the flavors step (6)
+    let target = wizardStep + 1
+    if (noNicotine && target === 5) target = 6
+    if (isMixMode && target === 6) target = 7
+    goToStep(target)
   }
 
   // Persistent live-preview bottle — sits between step buttons and page content
@@ -1007,9 +993,9 @@ export default function NicotineScreen({ navigation, route }) {
         {wizardStep > 1 && wizardStep < 7 && (
           <View style={styles.bottleRow}>
             {persistentBottle}
-            {wizardStep >= 2 && (isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)) > 0 && (
+            {wizardStep >= 2 && (isMixMode ? (mixTotal ?? 0) : (parseFloat(totalVolume) || 0)) > 0 && (
               <VolumeScale
-                volume={isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)}
+                volume={isMixMode ? (mixTotal ?? 0) : (parseFloat(totalVolume) || 0)}
               />
             )}
           {noNicotine || (parseFloat(targetStrength) || 0) > 0 || (parseFloat(nicStrength) || 0) > 0 || nicSources.length > 0 ? (
