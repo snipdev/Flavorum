@@ -6,7 +6,7 @@ import { fs, spacing, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { useI18n } from '../i18n'
 
-export default function SliderInput({ label, value, onChangeText, min = 0, max = 100, step = 1, suffix, inputRef }) {
+export default function SliderInput({ label, value, onChangeText, min = 0, max = 100, step = 1, suffix, inputRef, placeholder }) {
   const { t } = useI18n()
   const { theme, textScale } = useTheme()
   const colors = theme
@@ -65,6 +65,7 @@ export default function SliderInput({ label, value, onChangeText, min = 0, max =
           onChangeText={v => onChangeText(sanitize(v))}
           keyboardType="decimal-pad"
           selectTextOnFocus
+          placeholder={placeholder}
           placeholderTextColor={colors.textDim}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}

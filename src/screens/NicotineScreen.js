@@ -8,15 +8,16 @@ import PgVgSlider from '../components/PgVgSlider'
 import ResultBox from '../components/ResultBox'
 import LivePreviewBottle from '../components/LivePreviewBottle'
 import VolumeScale from '../components/VolumeScale'
+import NicotineInfo from '../components/NicotineInfo'
 import FlavorAutocomplete from '../components/FlavorAutocomplete'
 import StickyHeader from '../components/StickyHeader'
 import ThemeToggle from '../components/ThemeToggle'
 import FontToggle from '../components/FontToggle'
 import LangToggle from '../components/LangToggle'
-import { fs, spacing, useLayoutMode, dockShadow, useShadowFade, font } from '../theme'
+import { fs, spacing, useLayoutMode, font } from '../theme'
 import { useTheme } from '../ThemeContext'
 import { calculateNicotine } from '../utils/calculations'
-import { loadRecipes, loadBatches, saveBatches, newBatchId, loadFlavorRecs, recomputeFlavorRecs, getRecValue } from '../utils/recipes'
+import { loadRecipes, loadBatches, saveBatches, newBatchId, loadFlavorRecs, recomputeFlavorRecs, seedStarterRecipes, getRecValue } from '../utils/recipes'
 import { hapticLight } from '../utils/haptics'
 import { useEscToClose } from '../utils/useEscToClose'
 import { useI18n } from '../i18n'
@@ -97,6 +98,22 @@ function PresetGrid({ items, value, onSelect, suffix }) {
   )
 }
 
+// Small panel shown above the nicotine info box once the target strength
+// (wizard step 5) has been picked — e.g. "3 mg".
+function TargetStrengthBadge({ value }) {
+  const { theme: colors, textScale } = useTheme()
+  const { t } = useI18n()
+  const styles = createStyles(colors, textScale)
+  const mg = parseFloat(value) || 0
+  if (!(mg > 0)) return null
+  return (
+    <View style={styles.targetBadge}>
+      <Text style={styles.targetBadgeValue}>{mg} mg</Text>
+      <Text style={styles.targetBadgeCaption}>{t('build.target')}</Text>
+    </View>
+  )
+}
+
 export default function NicotineScreen({ navigation, route }) {
   const { t } = useI18n()
   const { theme: colors, textScale } = useTheme()
@@ -104,7 +121,7 @@ export default function NicotineScreen({ navigation, route }) {
   // Wide web (viewport >= 920px) unlocks the two-column desktop layout;
   // everything below that — and all of mobile — keeps the single column.
   const { wide, desktop } = useLayoutMode()
-  const volRef = useRef({ isMixMode: false, mixAmount: '0', totalVolume: '0', targetPg: '' })
+  const volRef = useRef({ isMixMode: false, mixAmount: '0', totalVolume: '0', targetPg: '', nicStrength: '', nicBaseMode: '', targetStrength: '0', noNicotine: false })
   const [wizardStep, setWizardStep] = useState(1)
   const stepFade = useRef(new Animated.Value(1)).current
   const stepSlideY = useRef(new Animated.Value(0)).current
@@ -112,9 +129,11 @@ export default function NicotineScreen({ navigation, route }) {
   const bottleShake = useRef(new Animated.Value(0)).current
 
   const goToStep = useCallback((next) => {
-    const clamped = Math.max(1, Math.min(7, next))
+    let clamped = Math.max(1, Math.min(7, next))
+    const { isMixMode: mix, mixAmount: amt, totalVolume: vol, targetPg: pg, nicStrength: nStr, nicBaseMode: nMode, targetStrength: tStr, noNicotine: noNic } = volRef.current
+    // Nicotine-free skips the strength step (5) entirely — 4 jumps straight to 6
+    if (noNic && clamped === 5) clamped = next > 5 ? 6 : 4
     if (clamped === wizardStep) return
-    const { isMixMode: mix, mixAmount: amt, totalVolume: vol, targetPg: pg } = volRef.current
     // Block going past step 2 if no volume selected
     if (clamped > 2) {
       const v = mix ? (parseFloat(amt) || 0) : (parseFloat(vol) || 0)
@@ -122,12 +141,16 @@ export default function NicotineScreen({ navigation, route }) {
     }
     // Block going past step 3 if no VG/PG ratio selected
     if (clamped > 3 && !(parseFloat(pg) > 0)) { shakeBottle(); return }
+    // Block going past step 4 if nicotine base is incomplete (strength + type) — unless nicotine-free
+    if (clamped > 4 && !noNic && !((parseFloat(nStr) || 0) > 0 && nMode !== '')) { shakeBottle(); return }
+    // Block going past step 5 if no target strength was picked — 0 is not a valid choice
+    if (clamped > 5 && !noNic && !((parseFloat(tStr) || 0) > 0)) { shakeBottle(); return }
     setWizardStep(clamped)
   }, [wizardStep])
-  const dockShadowOpacity = useShadowFade(false)
   const headerRef = useRef(null)
-  const [nicStrength, setNicStrength] = useState('0')
-  const [nicBaseMode, setNicBaseMode] = useState('pg')
+  const [nicStrength, setNicStrength] = useState('')
+  const [nicBaseMode, setNicBaseMode] = useState('')
+  const [noNicotine, setNoNicotine] = useState(false)
   const [nicCustomPg, setNicCustomPg] = useState('50')
   const [nicCustomVg, setNicCustomVg] = useState('50')
   const nicPg = useMemo(() => {
@@ -143,8 +166,8 @@ export default function NicotineScreen({ navigation, route }) {
   const [flavorPct, setFlavorPct] = useState('0')
   const [ingredientMode, setIngredientMode] = useState('flavor')
   const isMixMode = ingredientMode === 'mix' || ingredientMode === 'single'
-  // Keep volRef in sync for goToStep volume check (avoids TDZ)
-  useEffect(() => { volRef.current = { isMixMode, mixAmount, totalVolume, targetPg } })
+  // Keep volRef in sync for goToStep checks (avoids TDZ)
+  useEffect(() => { volRef.current = { isMixMode, mixAmount, totalVolume, targetPg, nicStrength, nicBaseMode, targetStrength, noNicotine } })
   const mixTotal = useMemo(() => {
     if (!isMixMode) return null
     const vol = parseFloat(mixAmount) || 0
@@ -179,7 +202,9 @@ export default function NicotineScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       let active = true
-      loadRecipes().then(list => {
+      // Make sure starter recipes exist before loading, so "Load flavors from recipe"
+      // is populated on first visit too (Recipes tab normally performs this seed).
+      seedStarterRecipes().then(() => loadRecipes()).then(list => {
         if (!active) return
         setSavedRecipes(list)
         loadFlavorRecs().then(recs => {
@@ -308,22 +333,6 @@ export default function NicotineScreen({ navigation, route }) {
     const ml = Math.round((target * vol / nic) * 10) / 10
     return { ml, vol: Math.round(vol * 10) / 10 }
   })()
-
-  // Live totals for the sticky summary bar (updates as values change, no Calculate needed)
-  const liveVol = useMemo(() => {
-    if (isMixMode) {
-      const amt = parseFloat(mixAmount) || 0
-      const pct = parseFloat(flavorPct) || 0
-      if (amt <= 0 || pct <= 0) return null
-      return Math.round((amt / (pct / 100)) * 10) / 10
-    }
-    const vol = parseFloat(totalVolume) || 0
-    return vol > 0 ? Math.round(vol * 10) / 10 : null
-  }, [isMixMode, mixAmount, flavorPct, totalVolume])
-
-  const summaryPgVal = parseFloat(targetPg) || 0
-  const summaryPg = summaryPgVal > 0 ? Math.round(summaryPgVal) : 0
-  const summaryVg = summaryPgVal > 0 ? Math.round(100 - summaryPgVal) : 0
 
   const renderWarn = (w) => w ? (
     <View style={styles.inlineWarn} accessibilityLiveRegion="polite">
@@ -583,68 +592,114 @@ export default function NicotineScreen({ navigation, route }) {
   const nicotineFields = (
     <>
       <View style={styles.nicCard}>
-          <Text style={styles.nicTitle}>{t('build.nicotine')}</Text>
+        <Text style={styles.nicTitle}>{t('build.nicotine')}</Text>
 
-          <View style={styles.fieldGroup}>
-          <SliderInput label={t('build.nicStrength')} value={nicStrength} onChangeText={setNicStrength} min={0} max={100} step={1} suffix="mg/ml" />
-          {renderWarn(highNicWarn)}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>{t('build.nicBaseType')}</Text>
-            <View style={styles.modeRow}>
-              {[
-                { key: 'pg', label: t('build.pg100') },
-                { key: 'vg', label: t('build.vg100') },
-                { key: 'custom', label: t('build.custom') },
-              ].map(m => (
-                <TouchableOpacity
-                  key={m.key}
-                  style={[styles.modeBtn, nicBaseMode === m.key && styles.modeBtnActive]}
-                  onPress={() => setNicBaseMode(m.key)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.modeBtnText, nicBaseMode === m.key && styles.modeBtnTextActive]}>{m.label}</Text>
-                </TouchableOpacity>
-              ))}
+        <View style={styles.noNicStack}>
+          <TouchableOpacity
+            style={[styles.noNicOpt, !noNicotine && styles.noNicOptBaseOn]}
+            // Switching back to a base always starts clean — every field is a fresh, mandatory choice
+            onPress={() => { setNoNicotine(false); setNicStrength(''); setNicBaseMode('') }}
+            disabled={!noNicotine}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <View style={[styles.noNicOptIcon, !noNicotine && styles.noNicOptIconBaseOn]}>
+              <Ionicons name="flask-outline" size={18} color={colors.primaryLight} />
             </View>
-            {nicBaseMode === 'custom' && (
-              <View style={styles.customSpacing}>
-                <PgVgSlider value={nicCustomPg} onChangeText={v => { setNicCustomPg(v); const n = parseFloat(v) || 0; setNicCustomVg(String(100 - n)) }} />
-              </View>
-            )}
-          </View>
+            <View style={styles.noNicOptInfo}>
+              <Text style={[styles.noNicOptTitle, !noNicotine && styles.noNicOptTitleBaseOn]}>{t('build.withNic')}</Text>
+              <Text style={styles.noNicOptDesc}>{t('build.withNicDesc')}</Text>
+            </View>
+            <Ionicons name={noNicotine ? 'ellipse-outline' : 'checkmark-circle'} size={18} color={noNicotine ? colors.border : colors.primaryLight} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.noNicOpt, noNicotine && styles.noNicOptFreeOn]}
+            // Nicotine-free drops base & target values so a later switch back starts empty
+            onPress={() => { setNoNicotine(true); setTargetStrength('0'); setNicStrength(''); setNicBaseMode(''); setNicSources([]) }}
+            disabled={noNicotine}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <View style={[styles.noNicOptIcon, noNicotine && styles.noNicOptIconFreeOn]}>
+              <Ionicons name="leaf-outline" size={18} color={colors.success} />
+            </View>
+            <View style={styles.noNicOptInfo}>
+              <Text style={[styles.noNicOptTitle, noNicotine && styles.noNicOptTitleFreeOn]}>{t('build.nicFree')}</Text>
+              <Text style={styles.noNicOptDesc}>{t('build.nicFreeDesc')}</Text>
+            </View>
+            <Ionicons name={noNicotine ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={noNicotine ? colors.success : colors.border} />
+          </TouchableOpacity>
         </View>
 
-        {nicSources.length > 0 && (
-          <View style={styles.cardSection}>
-            {warning && (
-              <View style={styles.warningBox}>
-                <Ionicons name="warning" size={16} color={colors.danger} />
-                <Text style={styles.warningText}>{warning}</Text>
+        {noNicotine ? (
+          <View style={styles.nicFreeNote}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={styles.nicFreeNoteText}>{t('build.nicFreeNote')}</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.fieldGroup}>
+              <SliderInput label={t('build.nicStrength')} value={nicStrength} onChangeText={setNicStrength} min={0} max={100} step={1} suffix="mg/ml" placeholder="—" />
+              {renderWarn(highNicWarn)}
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>{t('build.nicBaseType')}</Text>
+              <View style={styles.modeRow}>
+                {[
+                  { key: 'pg', label: t('build.pg100') },
+                  { key: 'vg', label: t('build.vg100') },
+                  { key: 'custom', label: t('build.custom') },
+                ].map(m => (
+                  <TouchableOpacity
+                    key={m.key}
+                    style={[styles.modeBtn, nicBaseMode === m.key && styles.modeBtnActive]}
+                    onPress={() => setNicBaseMode(m.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.modeBtnText, nicBaseMode === m.key && styles.modeBtnTextActive]}>{m.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {nicBaseMode === 'custom' && (
+                <View style={styles.customSpacing}>
+                  <PgVgSlider value={nicCustomPg} onChangeText={v => { setNicCustomPg(v); const n = parseFloat(v) || 0; setNicCustomVg(String(100 - n)) }} />
+                </View>
+              )}
+            </View>
+
+            {nicSources.length > 0 && (
+              <View style={styles.cardSection}>
+                {warning && (
+                  <View style={styles.warningBox}>
+                    <Ionicons name="warning" size={16} color={colors.danger} />
+                    <Text style={styles.warningText}>{warning}</Text>
+                  </View>
+                )}
+                <Text style={styles.cardSectionTitle}>{t('build.savedSources')}</Text>
+                {nicSources.map(s => (
+                  <View key={s.id}>
+                    <SourceCard
+                      source={s}
+                      onUpdate={(field, value) => {
+                        setNicSources(prev => prev.map(x => x.id === s.id ? { ...x, [field]: value } : x))
+                      }}
+                      onDelete={() => setNicSources(nicSources.filter(x => x.id !== s.id))}
+                      amountInputRef={el => { amountRefs.current[s.id] = el }}
+                    />
+                  </View>
+                ))}
               </View>
             )}
-            <Text style={styles.cardSectionTitle}>{t('build.savedSources')}</Text>
-            {nicSources.map(s => (
-              <View key={s.id}>
-                <SourceCard
-                  source={s}
-                  onUpdate={(field, value) => {
-                    setNicSources(prev => prev.map(x => x.id === s.id ? { ...x, [field]: value } : x))
-                  }}
-                  onDelete={() => setNicSources(nicSources.filter(x => x.id !== s.id))}
-                  amountInputRef={el => { amountRefs.current[s.id] = el }}
-                />
-              </View>
-            ))}
-          </View>
+
+            <TouchableOpacity style={styles.addNicBtn} onPress={() => {
+              setNicSources([...nicSources, { id: Date.now(), strength: nicStrength, baseType: nicBaseMode, customPg: nicCustomPg, customVg: nicCustomVg, amount: '' }])
+            }}>
+              <Ionicons name="add-circle-outline" size={16} color={colors.primaryLight} />
+              <Text style={styles.addNicBtnText}>{t('build.addNicSource')}</Text>
+            </TouchableOpacity>
+          </>
         )}
-
-        <TouchableOpacity style={styles.addNicBtn} onPress={() => {
-          setNicSources([...nicSources, { id: Date.now(), strength: nicStrength, baseType: nicBaseMode, customPg: nicCustomPg, customVg: nicCustomVg, amount: '' }])
-        }}>
-          <Ionicons name="add-circle-outline" size={16} color={colors.primaryLight} />
-          <Text style={styles.addNicBtnText}>{t('build.addNicSource')}</Text>
-        </TouchableOpacity>
-        </View>
+      </View>
     </>
   )
 
@@ -790,40 +845,74 @@ export default function NicotineScreen({ navigation, route }) {
     </View>
   )
 
+  // Start the whole wizard over from scratch (saved batches/recipes are untouched)
+  const resetWizard = () => {
+    setWizardStep(1)
+    setIngredientMode('flavor')
+    setTotalVolume('0')
+    setMixAmount('0')
+    setMixName('')
+    setFlavorPct('0')
+    setTargetPg('')
+    setNicStrength('')
+    setNicBaseMode('')
+    setNoNicotine(false)
+    setNicCustomPg('50')
+    setNicCustomVg('50')
+    setTargetStrength('0')
+    setFlavors([])
+    setNicSources([])
+    setResult(null)
+    setWarning(null)
+  }
+
   // Wizard progress indicator: number circles with labels underneath.
   const wizardProgress = (
     <View style={[styles.wizardProgress, wide && styles.pagerWide]}>
-      {[1, 2, 3, 4, 5, 6, 7].map(step => (
-        <View key={step} style={styles.wizardStep}>
-          <View style={styles.wizardStepCircleRow}>
-            {step > 1 && <View style={[styles.wizardStepLine, wizardStep >= step && styles.wizardStepLineActive]} />}
-            <TouchableOpacity
-              style={[
-                styles.wizardStepCircle,
-                wizardStep >= step && styles.wizardStepCircleActive,
-                wizardStep === step && styles.wizardStepCircleCurrent,
-              ]}
-              onPress={() => goToStep(step)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-            >
+      {[1, 2, 3, 4, 5, 6, 7].map(step => {
+        const skipped = noNicotine && step === 5
+        return (
+          <View key={step} style={styles.wizardStep}>
+            <View style={styles.wizardStepCircleRow}>
+              {step > 1 && <View style={[styles.wizardStepLine, !skipped && wizardStep >= step && styles.wizardStepLineActive]} />}
+              <TouchableOpacity
+                style={[
+                  styles.wizardStepCircle,
+                  skipped && styles.wizardStepCircleSkip,
+                  !skipped && wizardStep >= step && styles.wizardStepCircleActive,
+                  !skipped && wizardStep === step && styles.wizardStepCircleCurrent,
+                ]}
+                onPress={() => goToStep(step)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+              >
+                <Text style={[
+                  styles.wizardStepNum,
+                  !skipped && wizardStep >= step && styles.wizardStepNumActive,
+                ]}>{step}</Text>
+              </TouchableOpacity>
+              {step < 7 && <View style={[styles.wizardStepLine, !skipped && wizardStep > step && styles.wizardStepLineActive]} />}
+            </View>
+            <TouchableOpacity onPress={() => goToStep(step)} activeOpacity={0.7} accessibilityRole="button" style={[styles.wizardStepLabelWrap, skipped && styles.wizardStepLabelSkip]}>
               <Text style={[
-                styles.wizardStepNum,
-                wizardStep >= step && styles.wizardStepNumActive,
-              ]}>{step}</Text>
+                styles.wizardStepLabel,
+                !skipped && wizardStep === step && styles.wizardStepLabelActive,
+              ]} numberOfLines={2}>
+                {t(WIZARD_STEP_KEYS[step - 1])}
+              </Text>
             </TouchableOpacity>
-            {step < 7 && <View style={[styles.wizardStepLine, wizardStep > step && styles.wizardStepLineActive]} />}
           </View>
-          <TouchableOpacity onPress={() => goToStep(step)} activeOpacity={0.7} accessibilityRole="button" style={styles.wizardStepLabelWrap}>
-            <Text style={[
-              styles.wizardStepLabel,
-              wizardStep === step && styles.wizardStepLabelActive,
-            ]} numberOfLines={2}>
-              {t(WIZARD_STEP_KEYS[step - 1])}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ))}
+        )
+      })}
+      <TouchableOpacity
+        style={styles.wizardResetBtn}
+        onPress={resetWizard}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={t('build.restart')}
+      >
+        <Ionicons name="refresh" size={16} color={colors.primaryLight} />
+      </TouchableOpacity>
     </View>
   )
 
@@ -892,6 +981,13 @@ export default function NicotineScreen({ navigation, route }) {
     const vol = isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)
     if (vol <= 0 && wizardStep >= 2) { shakeBottle(); return }
     if (wizardStep === 3 && !(parseFloat(targetPg) > 0)) { shakeBottle(); return }
+    if (wizardStep === 4) {
+      // Nicotine-free skips the strength step (5) — jump straight to flavors (6)
+      if (noNicotine) { goToStep(6); return }
+      if (!((parseFloat(nicStrength) || 0) > 0 && nicBaseMode !== '')) { shakeBottle(); return }
+    }
+    // On the strength step, 0 is not a valid choice — a target must be picked
+    if (wizardStep === 5 && !(parseFloat(targetStrength) > 0)) { shakeBottle(); return }
     goToStep(wizardStep + 1)
   }
 
@@ -908,7 +1004,7 @@ export default function NicotineScreen({ navigation, route }) {
   const wizardPager = (
     <View style={styles.wizardStage}>
       <View style={styles.wizardStageContent}>
-        {wizardStep > 1 && (
+        {wizardStep > 1 && wizardStep < 7 && (
           <View style={styles.bottleRow}>
             {persistentBottle}
             {wizardStep >= 2 && (isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)) > 0 && (
@@ -916,6 +1012,31 @@ export default function NicotineScreen({ navigation, route }) {
                 volume={isMixMode ? (parseFloat(mixAmount) || 0) : (parseFloat(totalVolume) || 0)}
               />
             )}
+          {noNicotine || (parseFloat(targetStrength) || 0) > 0 || (parseFloat(nicStrength) || 0) > 0 || nicSources.length > 0 ? (
+            <View style={styles.infoStack}>
+              {noNicotine ? (
+                <View style={[styles.targetBadge, styles.nicFreeBadge]}>
+                  <Text style={[styles.targetBadgeValue, styles.nicFreeBadgeValue]}>0 mg</Text>
+                  <Text style={styles.targetBadgeCaption}>{t('build.nicFreeChip')}</Text>
+                </View>
+              ) : (
+                <>
+                  {(parseFloat(targetStrength) || 0) > 0 && (
+                    <TargetStrengthBadge value={targetStrength} />
+                  )}
+                  {((parseFloat(nicStrength) || 0) > 0 || nicSources.length > 0) && (
+                    <NicotineInfo
+                      strength={nicStrength}
+                      baseMode={nicBaseMode}
+                      customPg={nicCustomPg}
+                      customVg={nicCustomVg}
+                      sourceCount={nicSources.length}
+                    />
+                  )}
+                </>
+              )}
+            </View>
+          ) : null}
           </View>
         )}
         <View style={styles.crossfadeContainer}>
@@ -939,37 +1060,6 @@ export default function NicotineScreen({ navigation, route }) {
       )}
     </View>
   )
-  const dock = (
-    <View style={styles.bottomDock}>
-      <Animated.View pointerEvents="none" style={[styles.dockShadowLayer, { opacity: dockShadowOpacity }]} />
-      <View style={styles.summaryBar} accessibilityLiveRegion="polite">
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>{t('build.summaryBase')}</Text>
-          <View style={styles.summaryValueRow}>
-            <Ionicons name="flask-outline" size={11} color={colors.primaryLight} />
-            <Text style={styles.summaryValue} numberOfLines={1}>{nicPreview ? `${nicPreview.ml} ml` : '—'}</Text>
-          </View>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>{t('build.summaryVol')}</Text>
-          <View style={styles.summaryValueRow}>
-            <Ionicons name="water-outline" size={11} color={colors.primaryLight} />
-            <Text style={styles.summaryValue} numberOfLines={1}>{liveVol != null ? `${liveVol} ml` : '—'}</Text>
-          </View>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>{t('build.summaryVgPg')}</Text>
-          <View style={styles.summaryValueRow}>
-            <Ionicons name="contrast-outline" size={11} color={colors.primaryLight} />
-            <Text style={styles.summaryValue} numberOfLines={1}>{summaryPgVal > 0 ? `${summaryVg}/${summaryPg}` : '—'}</Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  )
-
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <KeyboardAvoidingView
@@ -983,7 +1073,6 @@ export default function NicotineScreen({ navigation, route }) {
               {wizardProgress}
               {wizardPager}
             </View>
-            {dock}
           </>
         ) : (
           <>
@@ -992,7 +1081,6 @@ export default function NicotineScreen({ navigation, route }) {
               {wizardProgress}
               {wizardPager}
             </View>
-            {dock}
           </>
         )}
       </KeyboardAvoidingView>
@@ -1153,7 +1241,20 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   heroSubtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   // Wizard styles
-  wizardProgress: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.sm },
+  wizardProgress: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', paddingVertical: spacing.md, paddingLeft: spacing.sm, paddingRight: 42 },
+  wizardResetBtn: {
+    alignSelf: 'flex-end',
+    width: 28,
+    height: 28,
+    marginLeft: 6,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.primary + '66',
+    backgroundColor: colors.primary + '1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
   wizardStep: { flex: 1, alignItems: 'center' },
   wizardStepCircleRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
   wizardStepCircle: {
@@ -1173,6 +1274,8 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   wizardStepLabelWrap: { marginTop: 4, paddingHorizontal: 2 },
   wizardStepLabel: { fontSize: fs(9, scale), color: colors.textDim, ...font('600'), textAlign: 'center' },
   wizardStepLabelActive: { color: colors.primaryLight },
+  wizardStepCircleSkip: { opacity: 0.3, borderColor: colors.textDim, borderStyle: 'dashed' },
+  wizardStepLabelSkip: { opacity: 0.45 },
   wizardStepLine: { height: 2, flex: 1, backgroundColor: colors.border, marginHorizontal: 2, borderRadius: 1 },
   wizardStepLineActive: { backgroundColor: colors.primary },
   welcomeCard: {
@@ -1269,6 +1372,33 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     minHeight: 220,
   },
 
+  infoStack: { gap: 6, marginLeft: 10, alignItems: 'center' },
+  targetBadge: {
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.primary + '66',
+    backgroundColor: colors.primary + '1F',
+    minWidth: 108,
+  },
+  targetBadgeValue: {
+    fontSize: fs(16, scale),
+    ...font('800'),
+    color: colors.primaryLight,
+    letterSpacing: 0.3,
+  },
+  targetBadgeCaption: {
+    fontSize: fs(8, scale),
+    ...font('600'),
+    color: colors.textDim,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginTop: 1,
+  },
+  nicFreeBadge: { borderColor: colors.success + '66', backgroundColor: colors.success + '14' },
+  nicFreeBadgeValue: { color: colors.success },
   wizardResultEmpty: {
     alignItems: 'center',
     gap: 10,
@@ -1356,6 +1486,45 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     gap: spacing.md,
   },
   nicTitle: { fontSize: fs(14, scale), color: colors.textMuted, ...font('700'), letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center', marginBottom: spacing.md },
+  noNicStack: { gap: 8, marginBottom: spacing.sm },
+  noNicOpt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.inputBg,
+  },
+  noNicOptBaseOn: { borderColor: colors.primary, backgroundColor: colors.primary + '1A' },
+  noNicOptFreeOn: { borderColor: colors.success, backgroundColor: colors.success + '14' },
+  noNicOptIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.border + '44',
+  },
+  noNicOptIconBaseOn: { backgroundColor: colors.primary + '33' },
+  noNicOptIconFreeOn: { backgroundColor: colors.success + '33' },
+  noNicOptInfo: { flex: 1 },
+  noNicOptTitle: { fontSize: fs(13, scale), ...font('700'), color: colors.textMuted },
+  noNicOptTitleBaseOn: { color: colors.primaryLight },
+  noNicOptTitleFreeOn: { color: colors.success },
+  noNicOptDesc: { fontSize: fs(10, scale), color: colors.textDim, marginTop: 1, lineHeight: 13 },
+  nicFreeNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.success + '55',
+    backgroundColor: colors.success + '12',
+    padding: 10,
+  },
+  nicFreeNoteText: { flex: 1, fontSize: fs(11, scale), color: colors.textMuted, ...font('500'), lineHeight: 15 },
   flavorCard: {
     backgroundColor: colors.success + '12',
     borderWidth: 1,
@@ -1470,40 +1639,6 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   presetActive: { borderColor: colors.primary, backgroundColor: colors.primary + '2E' },
   presetTextActive: { color: colors.primaryLight, ...font('700') },
   presetText: { fontSize: fs(13, scale), color: colors.primaryLight, ...font('500') },
-  bottomDock: {
-    borderTopWidth: 1,
-    borderTopColor: colors.primary + '1F',
-    backgroundColor: colors.bg,
-  },
-  // Dedicated shadow layer above the dock: only its opacity animates, which
-  // works on web (RN-web Animated can't emit an interpolated shadow* style).
-  dockShadowLayer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: '100%',
-    height: 8,
-    ...dockShadow,
-  },
-  summaryBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xs,
-  },
-  summaryItem: { flex: 1, alignItems: 'center', gap: 1 },
-  summaryValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  summaryLabel: {
-    fontSize: fs(9, scale),
-    color: colors.textDim,
-    ...font('600'),
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  summaryValue: { fontSize: fs(12, scale), ...font('700'), color: colors.primaryLight },
-  summaryDivider: { width: 1, height: 18, backgroundColor: colors.primary + '1F' },
   saveResultBtn: {
     flexDirection: 'row',
     alignItems: 'center',
