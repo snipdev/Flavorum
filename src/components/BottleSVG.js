@@ -110,11 +110,53 @@ function LiquidBubbles({ clipId, bodyBottom, fillTopMax, total }) {
  */
 export default function BottleSVG({ segments, totalMl, width, animateFill }) {
   const { theme, textScale } = useTheme()
-  const fillOpacity = useRef(new Animated.Value(animateFill ? 0 : 1)).current
+
+  // Liquid geometry is needed before the fill animation refs are created.
+  const bodyBottom = 158
+  const fillTopMax = 100 // liquid never rises above the straight body walls
+  const liquidMax = bodyBottom - fillTopMax
+
+  // Fill animation: the liquid rises up out of the bottle bottom while fading in.
+  // react-native-svg doesn't animate SVG transforms via Animated on web, so the
+  // rise is driven with a CSS transition there (zero re-renders per frame) and
+  // an Animated timing on native.
+  const fillDriver = Platform.OS !== 'web'
+  const fillOpacity = useRef(new Animated.Value(1)).current
+  const fillRise = useRef(new Animated.Value(0)).current
+  const hasRisen = useRef(!animateFill)
+  // Web: the liquid rise is driven frame-by-frame through state (react-native-svg
+  // won't animate SVG transforms via Animated or via nested plain-G CSS on web,
+  // but a style.transform on the group does render).
+  const [webRise, setWebRise] = useState(0)
+  const [webFade, setWebFade] = useState(1)
+  const total = segments.reduce((a, s) => a + (parseFloat(s.pct) || 0), 0)
   useEffect(() => {
-    if (!animateFill) return
-    Animated.timing(fillOpacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!animateFill || hasRisen.current || !(total > 0)) return
+    hasRisen.current = true
+    if (isWeb) {
+      const dur = 750
+      const start = Date.now()
+      setWebRise(liquidMax)
+      setWebFade(0)
+      let raf
+      const tick = () => {
+        const t = Math.min(1, (Date.now() - start) / dur)
+        const eased = 1 - Math.pow(1 - t, 3) // ease-out cubic
+        setWebRise(Math.round(liquidMax * (1 - eased)))
+        setWebFade(eased)
+        if (t < 1) raf = requestAnimationFrame(tick)
+      }
+      raf = requestAnimationFrame(tick)
+      return () => cancelAnimationFrame(raf)
+    } else {
+      fillRise.setValue(liquidMax)
+      fillOpacity.setValue(0)
+      Animated.parallel([
+        Animated.timing(fillOpacity, { toValue: 1, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: fillDriver }),
+        Animated.timing(fillRise, { toValue: 0, duration: 750, easing: Easing.out(Easing.cubic), useNativeDriver: fillDriver }),
+      ]).start()
+    }
+  }, [animateFill, total]) // eslint-disable-line react-hooks/exhaustive-deps
   const colors = theme
   const bottleWidth = width || (isWeb ? 112 : 96)
   const rawId = useId()
@@ -127,12 +169,6 @@ export default function BottleSVG({ segments, totalMl, width, animateFill }) {
   // Bottle silhouette: neck (47..63) tapers out to body (22..88).
   const bodyPath =
     'M 47 62 L 35 74 Q 22 84 22 96 L 22 148 Q 22 158 32 158 L 78 158 Q 88 158 88 148 L 88 96 Q 88 84 75 74 L 63 62 Z'
-
-  const bodyBottom = 158
-  const fillTopMax = 100 // liquid never rises above the straight body walls
-  const liquidMax = bodyBottom - fillTopMax
-
-  const total = segments.reduce((a, s) => a + (parseFloat(s.pct) || 0), 0)
 
   // Stack layers from the bottom up. Sub-1% layers collapse into a colored line.
   let cursor = bodyBottom
@@ -183,6 +219,48 @@ export default function BottleSVG({ segments, totalMl, width, animateFill }) {
     ? (Number.isInteger(totalMl) ? String(totalMl) : String(Math.round(totalMl * 10) / 10)) + ' ml'
     : null
 
+  // The liquid geometry (shared between the native Animated wrapper and the web
+  // plain-G wrapper).
+  const liquidContent = (
+    <>
+      {layers.map(layer => (
+        <Rect key={layer.key} x={20} y={layer.y} width={70} height={layer.h + 0.6} fill={layer.color} />
+      ))}
+      {/* Boundaries between filled layers */}
+      {layers.slice(1).map((layer, i) => (
+        <Rect key={'b' + i} x={20} y={layer.y - boundH / 2} width={70} height={boundH} fill="rgba(0,0,0,0.28)" />
+      ))}
+      {/* Sub-1% layers: colored line (with dark edge) instead of a fill */}
+      {thinLines.map(line => (
+        <G key={'t' + line.key}>
+          <Rect x={20} y={line.y - thinLineH / 2 - 0.5} width={70} height={thinLineH + 1} fill="rgba(0,0,0,0.30)" />
+          <Rect x={20} y={line.y - thinLineH / 2} width={70} height={thinLineH} fill={line.color} />
+        </G>
+      ))}
+      {/* Liquid surface reflection: contact line, glare, subsurface glow, meniscus */}
+      {layers.length > 0 && (
+        <G>
+          {/* Contact line: crisp highlight where the liquid meets the glass */}
+          <Rect x={23} y={surfaceY - (surfaceThin ? 0.4 : 0.6)} width={64} height={surfaceThin ? 0.8 : 1.2} fill="rgba(255,255,255,0.5)" rx={0.6} />
+          {/* Glare: gradient streak across the surface */}
+          <Ellipse cx={55} cy={surfaceY} rx={surfaceThin ? 22 : 30} ry={surfaceThin ? 1 : 1.8} fill={`url(#${glareId})`} />
+          {/* Subsurface glow: light penetrating the top liquid */}
+          <Ellipse cx={55} cy={surfaceY + (surfaceThin ? 1.5 : 3)} rx={surfaceThin ? 20 : 27} ry={surfaceThin ? 0.8 : 2.2} fill={topColor} opacity={surfaceThin ? 0.12 : 0.20} />
+          {/* Meniscus: surface dips slightly toward the middle */}
+          <Path d={`M 23 ${surfaceY} Q 55 ${surfaceY + (surfaceThin ? 0.5 : 1.3)} 87 ${surfaceY}`} stroke="rgba(255,255,255,0.30)" strokeWidth={surfaceThin ? 0.6 : 1} fill="none" />
+        </G>
+      )}
+      {/* Surface ripple: slow traveling wave (web only, no-op on mobile) */}
+      {layers.length > 0 && (
+        <SurfaceRipple y={surfaceY} />
+      )}
+      {/* Animated bubbles inside the liquid */}
+      {layers.length > 0 && (
+        <LiquidBubbles clipId={clipId} bodyBottom={bodyBottom} fillTopMax={fillTopMax} total={total} />
+      )}
+    </>
+  )
+
   return (
     <View style={{ alignItems: 'center' }}>
       <Svg width={bottleWidth} height={height} viewBox={`0 0 ${vbW} ${vbH}`}>
@@ -219,43 +297,22 @@ export default function BottleSVG({ segments, totalMl, width, animateFill }) {
 
         {/* Liquid layers (clipped to the bottle interior) */}
         <G clipPath={`url(#${clipId})`}>
-          <AnimatedG opacity={fillOpacity}>
-          {layers.map(layer => (
-            <Rect key={layer.key} x={20} y={layer.y} width={70} height={layer.h + 0.6} fill={layer.color} />
-          ))}
-          {/* Boundaries between filled layers */}
-          {layers.slice(1).map((layer, i) => (
-            <Rect key={'b' + i} x={20} y={layer.y - boundH / 2} width={70} height={boundH} fill="rgba(0,0,0,0.28)" />
-          ))}
-          {/* Sub-1% layers: colored line (with dark edge) instead of a fill */}
-          {thinLines.map(line => (
-            <G key={'t' + line.key}>
-              <Rect x={20} y={line.y - thinLineH / 2 - 0.5} width={70} height={thinLineH + 1} fill="rgba(0,0,0,0.30)" />
-              <Rect x={20} y={line.y - thinLineH / 2} width={70} height={thinLineH} fill={line.color} />
+          {/* Liquid content — rises up while filling, clipped to the bottle interior.
+              Native animates the group transform via Animated; on web a plain <G> is
+              used because AnimatedG splits its style onto an empty wrapper group. */}
+          {isWeb ? (
+            <G
+              transform={`translate(0, ${webRise})`}
+              opacity={webFade}
+            >
+              {liquidContent}
             </G>
-          ))}
-          {/* Liquid surface reflection: contact line, glare, subsurface glow, meniscus */}
-          {layers.length > 0 && (
-            <G>
-              {/* Contact line: crisp highlight where the liquid meets the glass */}
-              <Rect x={23} y={surfaceY - (surfaceThin ? 0.4 : 0.6)} width={64} height={surfaceThin ? 0.8 : 1.2} fill="rgba(255,255,255,0.5)" rx={0.6} />
-              {/* Glare: gradient streak across the surface */}
-              <Ellipse cx={55} cy={surfaceY} rx={surfaceThin ? 22 : 30} ry={surfaceThin ? 1 : 1.8} fill={`url(#${glareId})`} />
-              {/* Subsurface glow: light penetrating the top liquid */}
-              <Ellipse cx={55} cy={surfaceY + (surfaceThin ? 1.5 : 3)} rx={surfaceThin ? 20 : 27} ry={surfaceThin ? 0.8 : 2.2} fill={topColor} opacity={surfaceThin ? 0.12 : 0.20} />
-              {/* Meniscus: surface dips slightly toward the middle */}
-              <Path d={`M 23 ${surfaceY} Q 55 ${surfaceY + (surfaceThin ? 0.5 : 1.3)} 87 ${surfaceY}`} stroke="rgba(255,255,255,0.30)" strokeWidth={surfaceThin ? 0.6 : 1} fill="none" />
-            </G>
+          ) : (
+            <AnimatedG opacity={fillOpacity} transform={[{ translateY: fillRise }]}>
+              {liquidContent}
+            </AnimatedG>
           )}
-          {/* Surface ripple: slow traveling wave (web only, no-op on mobile) */}
-          {layers.length > 0 && (
-            <SurfaceRipple y={surfaceY} />
-          )}
-          {/* Animated bubbles inside the liquid */}
-          {layers.length > 0 && (
-            <LiquidBubbles clipId={clipId} bodyBottom={bodyBottom} fillTopMax={fillTopMax} total={total} />
-          )}
-          {/* Graduation marks (measuring scale on the right side) */}
+          {/* Static glass features (don't rise with the liquid): graduation marks, highlight, reflection */}
           {marks.map((m, i) => (
             <Rect key={'m' + i} x={81 - m.len} y={m.y - 0.5} width={m.len} height={1} fill="rgba(255,255,255,0.30)" />
           ))}
@@ -266,7 +323,6 @@ export default function BottleSVG({ segments, totalMl, width, animateFill }) {
             <Rect x={46} y={84} width={16} height={102} fill={`url(#${sheenId})`} />
             <Rect x={50} y={84} width={3.5} height={102} fill="rgba(255,255,255,0.10)" />
           </G>
-          </AnimatedG>
         </G>
       </Svg>
       {volLabel && (

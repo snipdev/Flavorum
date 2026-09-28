@@ -118,6 +118,12 @@ function AppInner() {
         iStyle.id = interactionId
         iStyle.type = 'text/css'
         iStyle.appendChild(document.createTextNode(`
+          @keyframes floatUp {
+            0% { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+            12% { opacity: 1; transform: translate(-50%, -3vh) scale(1.15); }
+            34% { opacity: 1; transform: translate(-50%, -10vh) scale(1.05); }
+            100% { opacity: 0; transform: translate(-50%, -38vh) scale(0.75); }
+          }
           [class*="r-cursor-"]:not(input):not(textarea) {
             transition: filter 0.15s ease !important;
           }

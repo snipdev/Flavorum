@@ -13,6 +13,11 @@ export const spacing = {
 }
 
 export const webMaxWidth = 580
+export const narrowWebBreakpoint = 420
+// Below this content width screens drop dense chrome (option descriptions,
+// secondary captions, wide gutters) so the primary action still fits nicely on
+// a phone in one hand. Above it — and on desktop — the fuller detail is shown.
+
 // Above this content width the screens switch to their two-column desktop
 // layouts (form left, sticky result right). Below it — and on mobile — the
 // single phone column is always preserved. The threshold is judged on the
@@ -35,12 +40,13 @@ export const isWeb = Platform.OS === 'web'
 // in exactly one place instead of being duplicated across screens and App.js.
 export function useLayoutMode() {
   const { width } = useWindowDimensions()
-  if (!isWeb) return { desktop: false, wide: false, contentWidth: width, sidebarWidth: 0 }
+  if (!isWeb) return { desktop: false, wide: false, narrow: false, contentWidth: width, sidebarWidth: 0 }
   const desktop = width >= sidebarWebBreakpoint
   const contentWidth = desktop ? width - sidebarWebWidth : width
   return {
     desktop,
     wide: contentWidth >= wideWebBreakpoint,
+    narrow: contentWidth <= narrowWebBreakpoint,
     contentWidth,
     sidebarWidth: desktop ? sidebarWebWidth : 0,
   }

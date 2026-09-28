@@ -48,6 +48,7 @@ export const translations = {
     'build.save': 'Save',
     'build.calculate': 'Calculate',
     'build.wizard': 'Wizard',
+
     'build.classic': 'Classic',
     'build.restart': 'Start over',
     'build.nicFreeChip': 'Nicotine-free',
@@ -62,7 +63,7 @@ export const translations = {
     'build.welcomeSubtitle': 'Pick what you are making — we will walk you through it step by step.',
     'build.welcomeFlavorTitle': 'Flavor Mix',
     'build.welcomeFlavorDesc': 'Blend several flavors, each with its own percentage.',
-    'build.welcomeReadyMixTitle': 'Single Concentrate / Ready Mix',
+    'build.welcomeReadyMixTitle': 'Ready Mix',
     'build.welcomeReadyMixDesc': 'One concentrate or a ready mix at a single percentage.',
     'common.back': 'Back',
     'common.next': 'Next',
@@ -333,6 +334,8 @@ export const translations = {
     'recipes.shareText': 'Text',
     'recipes.shareQr': 'QR Code',
     'recipes.copyToClipboard': 'Copy to Clipboard',
+    'recipes.shareNative': 'Share via...',
+    'recipes.shareFallback': 'Native share not available — copied to clipboard instead.',
     'recipes.qrHint': 'Scan the QR code to transfer the recipe.',
 
     // Components
@@ -424,6 +427,7 @@ export const translations = {
     'build.save': 'Kaydet',
     'build.calculate': 'Hesapla',
     'build.wizard': 'Sihirbaz',
+
     'build.classic': 'Klasik',
     'build.restart': 'Baştan başla',
     'build.nicFreeChip': 'Nikotinsiz',
@@ -438,7 +442,7 @@ export const translations = {
     'build.welcomeSubtitle': 'Ne hazırlayacağını seç — seni adım adım yönlendireceğiz.',
     'build.welcomeFlavorTitle': 'Aroma Karışımı',
     'build.welcomeFlavorDesc': 'Birden fazla aromayı, her biri kendi yüzdesiyle harmanla.',
-    'build.welcomeReadyMixTitle': 'Tek Konsantre / Hazır Mix',
+    'build.welcomeReadyMixTitle': 'Hazır Mix',
     'build.welcomeReadyMixDesc': 'Tek bir konsantre ya da hazır mix\'i tek bir yüzdeyle karıştır.',
     'common.back': 'Geri',
     'common.next': 'İleri',
@@ -707,6 +711,8 @@ export const translations = {
     'recipes.shareText': 'Metin',
     'recipes.shareQr': 'QR Kod',
     'recipes.copyToClipboard': 'Panoya Kopyala',
+    'recipes.shareNative': 'Şu yolla paylaş...',
+    'recipes.shareFallback': 'Yerel paylaşım desteklenmiyor — panoya kopyalandı.',
     'recipes.qrHint': 'Aynı QR kodu taratarak reçete aktarılabilir.',
 
     // Components

@@ -17,6 +17,7 @@ import UndoToast from '../components/UndoToast'
 import { useEscToClose } from '../utils/useEscToClose'
 import { useI18n } from '../i18n'
 import * as Clipboard from 'expo-clipboard'
+import * as Sharing from 'expo-sharing'
 import QRCode from 'react-native-qrcode-svg'
 
 export default function RecipesScreen({ navigation }) {
@@ -43,6 +44,7 @@ export default function RecipesScreen({ navigation }) {
   const [shareRecipe, setShareRecipe] = useState(null)
   const [copySuccess, setCopySuccess] = useState(false)
   const [copyError, setCopyError] = useState(false)
+  const [shareFallbackMsg, setShareFallbackMsg] = useState('')
   const [shareTab, setShareTab] = useState('text') // 'text' | 'qr'
   useEscToClose(scaleRecipe !== null, () => setScaleRecipe(null))
   useEscToClose(shareRecipe !== null, () => { setShareRecipe(null); setShareTab('text') })
@@ -120,8 +122,12 @@ export default function RecipesScreen({ navigation }) {
     )
     setFormError('')
     setFormSuccess('')
-    // Scroll to top so the edit form is visible
-    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50)
+    // Scroll to top so the edit form (in ListHeaderComponent) is visible
+    setTimeout(() => {
+      scrollRef.current?.scrollToIndex?.({ index: 0, animated: true, viewOffset: 0 })
+      scrollRef.current?.scrollToOffset?.({ offset: 0, animated: true })
+      scrollRef.current?.scrollTo?.({ y: 0, animated: true })
+    }, 100)
   }
 
   function resetForm() {
@@ -264,6 +270,37 @@ export default function RecipesScreen({ navigation }) {
       setCopySuccess(false)
       setCopyError(true)
       setTimeout(() => setCopyError(false), 3000)
+    }
+  }
+
+  const handleNativeShare = async () => {
+    if (!shareRecipe) return
+    const text = formatRecipeText(shareRecipe)
+    try {
+      // On web, use Web Share API if available
+      if (Platform.OS === 'web' && navigator.share) {
+        await navigator.share({ title: t('recipes.share'), text })
+        return
+      }
+      // On native, use expo-sharing
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(text, {
+          mimeType: 'text/plain',
+          dialogTitle: t('recipes.share'),
+        })
+        return
+      }
+      // Fallback to clipboard with feedback
+      await Clipboard.setStringAsync(text)
+      setCopySuccess(true)
+      setShareFallbackMsg(t('recipes.shareFallback'))
+      setTimeout(() => { setCopySuccess(false); setShareFallbackMsg('') }, 3000)
+    } catch (e) {
+      // Fallback to clipboard with feedback
+      await Clipboard.setStringAsync(text)
+      setCopySuccess(true)
+      setShareFallbackMsg(t('recipes.shareFallback'))
+      setTimeout(() => { setCopySuccess(false); setShareFallbackMsg('') }, 3000)
     }
   }
 
@@ -755,14 +792,27 @@ export default function RecipesScreen({ navigation }) {
                 <View style={styles.shareTextWrap}>
                   <Text style={styles.shareText}>{formatRecipeText(shareRecipe)}</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.copyBtn}
-                  onPress={() => handleCopyText(formatRecipeText(shareRecipe))}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name={copySuccess ? "checkmark-circle" : "copy"} size={16} color="#fff" />
-                  <Text style={styles.copyBtnText}>{copySuccess ? t('recipes.copied') : t('recipes.copyToClipboard')}</Text>
-                </TouchableOpacity>
+                <View style={styles.shareBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.shareBtn, styles.copyBtn]}
+                    onPress={() => handleCopyText(formatRecipeText(shareRecipe))}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name={copySuccess ? "checkmark-circle" : "copy"} size={16} color="#fff" />
+                    <Text style={styles.copyBtnText}>{copySuccess ? t('recipes.copied') : t('recipes.copyToClipboard')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.shareBtn}
+                    onPress={handleNativeShare}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="share-social-outline" size={16} color="#fff" />
+                    <Text style={styles.shareBtnText}>{t('recipes.shareNative')}</Text>
+                  </TouchableOpacity>
+                </View>
+                {shareFallbackMsg !== '' && (
+                  <Text style={styles.shareFallbackText} accessibilityLiveRegion="polite">{shareFallbackMsg}</Text>
+                )}
                 {copyError && <Text style={styles.copyErrorText} accessibilityRole="alert" accessibilityLiveRegion="polite">{t('recipes.copyFailed')}</Text>}
               </>
             ) : (
@@ -1109,6 +1159,10 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   copyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 10 },
   copyBtnText: { color: '#fff', ...font('700'), fontSize: fs(14, scale) },
   copyErrorText: { fontSize: fs(13, scale), color: colors.danger, ...font('600'), textAlign: 'center', marginTop: 8 },
+  shareBtnRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  shareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: colors.success },
+  shareBtnText: { color: '#fff', ...font('700'), fontSize: fs(14, scale) },
+  shareFallbackText: { fontSize: fs(13, scale), color: colors.textDim, ...font('500'), textAlign: 'center', marginTop: 8 },
 
   // Tag chip styles (form)
   tagChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: spacing.md },

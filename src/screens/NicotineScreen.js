@@ -30,6 +30,9 @@ const VG_PG_PRESETS = [
   { label: '50/50', pg: 50 },
 ]
 const WIZARD_STEP_KEYS = ['build.wizardStep1', 'build.wizardStep2', 'build.wizardStep3', 'build.wizardStep4', 'build.wizardStep5', 'build.wizardStep6', 'build.wizardStep7']
+// Saved batches carry `ingredientMode` (flavor / mix / single); older ones also
+// had an `isMixMode` flag, so accept either when deciding how to show them.
+const batchIsMixMode = (b) => !!(b && (b.isMixMode || b.ingredientMode === 'mix' || b.ingredientMode === 'single'))
 
 function SourceCard({ source, onUpdate, onDelete, amountInputRef }) {
   const { t } = useI18n()
@@ -120,13 +123,15 @@ export default function NicotineScreen({ navigation, route }) {
   const styles = createStyles(colors, textScale)
   // Wide web (viewport >= 920px) unlocks the two-column desktop layout;
   // everything below that — and all of mobile — keeps the single column.
-  const { wide, desktop } = useLayoutMode()
+  const { wide, desktop, narrow } = useLayoutMode()
   const volRef = useRef({ isMixMode: false, mixAmount: '0', flavorPct: '0', totalVolume: '0', targetPg: '', nicStrength: '', nicBaseMode: '', targetStrength: '0', noNicotine: false })
   const [wizardStep, setWizardStep] = useState(1)
   const stepFade = useRef(new Animated.Value(1)).current
   const stepSlideY = useRef(new Animated.Value(0)).current
   const stepScale = useRef(new Animated.Value(1)).current
   const bottleShake = useRef(new Animated.Value(0)).current
+  const bottleTilt = useRef(new Animated.Value(0)).current
+  const bottlePulse = useRef(new Animated.Value(1)).current
 
   const goToStep = useCallback((next) => {
     let clamped = Math.max(1, Math.min(7, next))
@@ -370,7 +375,7 @@ export default function NicotineScreen({ navigation, route }) {
 
   function loadBatch(b) {
     setIngredientMode(b.ingredientMode ?? 'flavor')
-    setMixName(b.isMixMode && Array.isArray(b.flavors) && b.flavors.length > 0 ? b.flavors[0].name : '')
+    setMixName(batchIsMixMode(b) && Array.isArray(b.flavors) && b.flavors.length > 0 ? b.flavors[0].name : '')
     setNicStrength(String(b.nicStrength ?? '100'))
     setNicBaseMode(b.nicBaseMode ?? 'pg')
     setNicCustomPg(String(b.nicCustomPg ?? '50'))
@@ -389,6 +394,10 @@ export default function NicotineScreen({ navigation, route }) {
     setLoadBatchModalVisible(false)
     setResult(null)
     setWarning(null)
+    // A batch is a complete saved configuration, so jump straight to the result
+    // step (7) instead of walking the wizard guards again — those would reject
+    // valid batches that intentionally store zero values (e.g. nicotine-free).
+    setWizardStep(7)
   }
 
   async function saveCurrentBatch() {
@@ -495,6 +504,8 @@ export default function NicotineScreen({ navigation, route }) {
       )}
     </View>
   )
+
+
 
   const flavorFields = (
     <>
@@ -716,8 +727,8 @@ export default function NicotineScreen({ navigation, route }) {
   // Step 1: Welcome — "What shall we make today?"
   const volumeStep = (
     <View style={styles.welcomeCard}>
-      <Text style={styles.welcomeTitle}>{t('build.welcomeTitle')}</Text>
-      <Text style={styles.welcomeSubtitle}>{t('build.welcomeSubtitle')}</Text>
+      <Text style={narrow ? styles.welcomeTitleNarrow : styles.welcomeTitle}>{t('build.welcomeTitle')}</Text>
+      <Text style={narrow ? styles.welcomeSubtitleNarrow : styles.welcomeSubtitle}>{t('build.welcomeSubtitle')}</Text>
 
       <TouchableOpacity
         style={[styles.welcomeOption, ingredientMode === 'flavor' && styles.welcomeOptionActive]}
@@ -728,8 +739,8 @@ export default function NicotineScreen({ navigation, route }) {
           <Ionicons name="leaf" size={22} color={colors.success} />
         </View>
         <View style={styles.welcomeOptionInfo}>
-          <Text style={styles.welcomeOptionTitle}>{t('build.welcomeFlavorTitle')}</Text>
-          <Text style={styles.welcomeOptionDesc}>{t('build.welcomeFlavorDesc')}</Text>
+          <Text style={narrow ? styles.welcomeOptionTitleNarrow : styles.welcomeOptionTitle}>{t('build.welcomeFlavorTitle')}</Text>
+          {!narrow && <Text style={styles.welcomeOptionDesc}>{t('build.welcomeFlavorDesc')}</Text>}
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
       </TouchableOpacity>
@@ -743,15 +754,15 @@ export default function NicotineScreen({ navigation, route }) {
           <Ionicons name="flask" size={22} color={colors.primaryLight} />
         </View>
         <View style={styles.welcomeOptionInfo}>
-          <Text style={styles.welcomeOptionTitle}>{t('build.welcomeReadyMixTitle')}</Text>
-          <Text style={styles.welcomeOptionDesc}>{t('build.welcomeReadyMixDesc')}</Text>
+          <Text style={narrow ? styles.welcomeOptionTitleNarrow : styles.welcomeOptionTitle}>{t('build.welcomeReadyMixTitle')}</Text>
+          {!narrow && <Text style={styles.welcomeOptionDesc}>{t('build.welcomeReadyMixDesc')}</Text>}
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.welcomeLoadBtn} onPress={() => setLoadBatchModalVisible(true)} activeOpacity={0.7}>
         <Ionicons name="layers-outline" size={16} color={colors.primaryLight} />
-        <Text style={styles.welcomeLoadBtnText}>{t('build.loadBatch')}</Text>
+        <Text style={narrow ? styles.welcomeLoadBtnTextNarrow : styles.welcomeLoadBtnText}>{t('build.loadBatch')}</Text>
       </TouchableOpacity>
     </View>
   )
@@ -952,12 +963,25 @@ export default function NicotineScreen({ navigation, route }) {
   ]
 
   const shakeBottle = () => {
+    const driver = Platform.OS !== 'web'
+    // One rapid shake + tilt + pulse step
+    const jolt = (x, tilt, pulse, dur = 45) => Animated.parallel([
+      Animated.timing(bottleShake, { toValue: x, duration: dur, useNativeDriver: driver }),
+      Animated.timing(bottleTilt, { toValue: tilt, duration: dur, useNativeDriver: driver }),
+      Animated.timing(bottlePulse, { toValue: pulse, duration: dur, useNativeDriver: driver }),
+    ])
     Animated.sequence([
-      Animated.timing(bottleShake, { toValue: 10, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
-      Animated.timing(bottleShake, { toValue: -10, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
-      Animated.timing(bottleShake, { toValue: 8, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
-      Animated.timing(bottleShake, { toValue: -8, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
-      Animated.timing(bottleShake, { toValue: 0, duration: 50, useNativeDriver: Platform.OS !== 'web' }),
+      jolt(11, 0.5, 1.05),
+      jolt(-11, -0.45, 1.02),
+      jolt(9, 0.4, 1.04),
+      jolt(-7, -0.3, 1.01),
+      jolt(5, 0.2, 1.03),
+      // Springy settle back to rest — feels bouncy instead of snapping
+      Animated.parallel([
+        Animated.spring(bottleShake, { toValue: 0, friction: 4, tension: 90, useNativeDriver: driver }),
+        Animated.spring(bottleTilt, { toValue: 0, friction: 4, tension: 90, useNativeDriver: driver }),
+        Animated.spring(bottlePulse, { toValue: 1, friction: 5, tension: 110, useNativeDriver: driver }),
+      ]),
     ]).start()
   }
 
@@ -983,6 +1007,8 @@ export default function NicotineScreen({ navigation, route }) {
       segments={wizardStep <= 2 ? [] : previewSegments}
       visible={true}
       shake={bottleShake}
+      tilt={bottleTilt}
+      pulse={bottlePulse}
     />
   )
 
@@ -1087,7 +1113,7 @@ export default function NicotineScreen({ navigation, route }) {
                 <TouchableOpacity key={b.id} style={styles.recipeRow} onPress={() => loadBatch(b)} activeOpacity={0.7}>
                   <View style={styles.recipeRowInfo}>
                     <Text style={styles.recipeRowName}>{b.name}</Text>
-                    <Text style={styles.recipeRowMetaText}>{b.isMixMode ? t('build.mix.mode') : t('build.flavor.mode')} · {(b.totalVolume || b.mixAmount) ? `${b.totalVolume || b.mixAmount} ml` : ''} · {b.targetStrength ? `${b.targetStrength} mg` : ''}</Text>
+                    <Text style={styles.recipeRowMetaText}>{batchIsMixMode(b) ? t('build.mix.mode') : t('build.flavor.mode')} · {(b.totalVolume || b.mixAmount) ? `${b.totalVolume || b.mixAmount} ml` : ''} · {b.targetStrength ? `${b.targetStrength} mg` : ''}</Text>
                   </View>
                   <Ionicons name="download-outline" size={20} color={colors.primaryLight} />
                 </TouchableOpacity>
@@ -1226,6 +1252,20 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
   heroTitleDesktop: { fontSize: fs(18, scale) },
   heroSubtitle: { fontSize: fs(13, scale), color: colors.textMuted, marginTop: 1 },
   heroRight: { marginLeft: 'auto', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  modeToggle: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 3,
+    gap: 2,
+    marginBottom: spacing.sm,
+    maxWidth: '100%',
+  },
+
+
   // Wizard styles
   wizardProgress: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', paddingVertical: spacing.md, paddingLeft: spacing.sm, paddingRight: 42 },
   wizardResetBtn: {
@@ -1273,44 +1313,61 @@ const createStyles = (colors, scale = 1) => StyleSheet.create({
     gap: spacing.md,
   },
   welcomeLogo: { width: 84, height: 84, borderRadius: 22, backgroundColor: '#F3EDE1', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', padding: 14, alignSelf: 'center', marginBottom: spacing.md },
-  welcomeTitle: { fontSize: fs(22, scale), ...font('800'), color: colors.text, marginBottom: 6 },
+  welcomeTitle: {
+    fontSize: fs(22, scale),
+    ...font('800'),
+    color: colors.text,
+    marginBottom: 6,
+  },
+  welcomeTitleNarrow: {
+    fontSize: fs(18, scale),
+    ...font('800'),
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
   welcomeSubtitle: { fontSize: fs(14, scale), color: colors.textDim, lineHeight: 20, marginBottom: spacing.lg },
+  welcomeSubtitleNarrow: { fontSize: fs(12, scale), color: colors.textDim, lineHeight: 16, marginBottom: spacing.sm },
   welcomeOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: spacing.md,
-    borderRadius: 14,
+    gap: 10,
+    padding: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.inputBg,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    minHeight: 48,
   },
   welcomeOptionActive: { borderColor: colors.primary, backgroundColor: colors.primary + '14' },
   welcomeOptionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary + '1A',
+    flexShrink: 0,
   },
   welcomeOptionInfo: { flex: 1 },
   welcomeOptionTitle: { fontSize: fs(16, scale), ...font('700'), color: colors.textMuted, marginBottom: 2 },
+  welcomeOptionTitleNarrow: { fontSize: fs(14, scale), ...font('700'), color: colors.textMuted, marginBottom: 1 },
   welcomeOptionDesc: { fontSize: fs(12, scale), color: colors.textDim, lineHeight: 17 },
   welcomeLoadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: colors.primary + '4D',
     marginTop: spacing.xs,
   },
   welcomeLoadBtnText: { fontSize: fs(14, scale), color: colors.primaryLight, ...font('600') },
+  welcomeLoadBtnTextNarrow: { fontSize: fs(12, scale), color: colors.primaryLight, ...font('600') },
 
   wizardBody: { flex: 1 },
   wizardStage: { flex: 1 },

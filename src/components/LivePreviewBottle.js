@@ -6,11 +6,13 @@ import BottleSVG from './BottleSVG'
  * Live preview bottle for the build wizard.
  * Pass `shake` (Animated.Value) to trigger a shake animation.
  */
-export default function LivePreviewBottle({ segments = [], visible, style, shake }) {
+export default function LivePreviewBottle({ segments = [], visible, style, shake, tilt, pulse }) {
   const opacity = useRef(new Animated.Value(0)).current
   const translateX = useRef(new Animated.Value(30)).current
   const fillLevel = useRef(new Animated.Value(0)).current
   const fallbackShake = useRef(new Animated.Value(0)).current
+  const fallbackTilt = useRef(new Animated.Value(0)).current
+  const fallbackPulse = useRef(new Animated.Value(1)).current
   const [mounted, setMounted] = useState(false)
 
   // Entrance animation: slide in from right + fade
@@ -43,6 +45,8 @@ export default function LivePreviewBottle({ segments = [], visible, style, shake
   }, [totalPct]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const shakeX = shake || fallbackShake
+  const tiltVal = tilt || fallbackTilt
+  const pulseVal = pulse || fallbackPulse
 
   if (!visible && !mounted) return null
 
@@ -52,7 +56,13 @@ export default function LivePreviewBottle({ segments = [], visible, style, shake
         style,
         {
           opacity,
-          transform: [{ translateX }, { translateX: shakeX }],
+          transform: [
+            { translateX },
+            { translateX: shakeX },
+            // tilt is normalized to ±1 → interpolate to a few degrees of rotation
+            { rotate: tiltVal.interpolate({ inputRange: [-1, 1], outputRange: ['-5deg', '5deg'] }) },
+            { scale: pulseVal },
+          ],
           alignItems: 'center',
           paddingVertical: 4,
         },
