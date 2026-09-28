@@ -40,7 +40,7 @@ export default function ResultBox({ items, title, segments = [], totalMl, flat, 
                 <View key={i} style={styles.legendItem}>
                   <View style={[styles.legendDot, { backgroundColor: seg.color }]} />
                   <Text style={styles.legendLabel}>{seg.label}</Text>
-                  <Text style={styles.legendPct}>%{seg.pct.toFixed(1)}</Text>
+                  <Text style={styles.legendPct}>{seg.pct.toFixed(1)}%</Text>
                 </View>
               ))}
             </View>

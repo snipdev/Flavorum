@@ -4,6 +4,18 @@ DIY e-liquid recipe manager — build, track and cost your vape mixes. Built wit
 
 All data stays on-device (AsyncStorage) — no accounts, no cloud, fully local and offline.
 
+## Screenshots
+
+| Build | Batches | Recipes |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/build.png" width="230" alt="Build wizard — choose flavor mix or ready mix" /> | <img src="docs/screenshots/batches.png" width="230" alt="Saved batch with steeping progress, target and result" /> | <img src="docs/screenshots/recipes.png" width="230" alt="Recipes with search, filters and one-tap Brew" /> |
+| Assemble a mix step by step, then load a saved batch straight into the result | Batches with steeping countdown, target, flavors and result | Saved recipes with Brew, Scale, Share and “can make” filters |
+
+| Flavors | Prices | Analytics |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/flavors.png" width="230" alt="Flavor database with brand badges and usage counts" /> | <img src="docs/screenshots/prices.png" width="230" alt="VG, PG, nicotine and per-flavor prices" /> | <img src="docs/screenshots/stats.png" width="230" alt="Top flavors used and total spend" /> |
+| 35,664 flavor names with brands, usage and stock tracking | Prices that power the per-batch cost estimate | Usage totals, spend and CSV export |
+
 ## Features
 
 - **Build** — assemble a mix from scratch: nicotine sources, target PG/VG ratio, flavor percentages (mix or flavor mode), live result breakdown and a per-batch cost hint.

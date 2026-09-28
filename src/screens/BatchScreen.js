@@ -404,7 +404,7 @@ export default function BatchScreen({ navigation }) {
                       <View key={seg.label} style={styles.bottleInfoRow}>
                         <View style={[styles.legendDot, { backgroundColor: seg.color }]} />
                         <Text style={styles.bottleInfoLabel} numberOfLines={1}>{seg.label}</Text>
-                        <Text style={styles.bottleInfoPct}>%{seg.pct.toFixed(1)}</Text>
+                        <Text style={styles.bottleInfoPct}>{seg.pct.toFixed(1)}%</Text>
                       </View>
                     ))}
                   </View>
